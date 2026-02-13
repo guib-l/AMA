@@ -7,11 +7,12 @@ import sys
 class Application:
 
     def __init__( self,
-                 application,
                  *,
+                 application,
                  software,
                  method,
-                 extension=None,):
+                 extension=None,
+                 **kwargs):
         
         self.applcation = application
         self.software   = software
