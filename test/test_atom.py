@@ -6,7 +6,7 @@ from typing import Any, Dict, TypeVar, Optional, Type, Union, Callable
 from functools import wraps
 from configs import *
 
-from ama.calculator.backend import Backend, mandatory_backend
+from amac.engine.backend import Backend, mandatory_backend
 
 
 

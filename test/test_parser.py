@@ -6,8 +6,8 @@ from typing import *
 
 from configs import *
 
-from ama.ios.parser import Parser
-from ama.ios.molden import read_XYZ,write_XYZ
+from amac.ios.parser import Parser
+from amac.ios.molden import read_XYZ,write_XYZ
 
 
 import ase

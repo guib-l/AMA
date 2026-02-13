@@ -6,11 +6,11 @@ from typing import *
 
 from configs import *
 
-from ama.ios.utils import progressbar
-from ama.ios.parser import Parser
-from ama.ios.molden import read_XYZ,write_XYZ
+from amac.ios.utils import progressbar
+from amac.ios.parser import Parser
+from amac.ios.molden import read_XYZ,write_XYZ
 
-from ama.analyse.geometry import *
+from amac.analyse.geometry import *
 
 
 import ase

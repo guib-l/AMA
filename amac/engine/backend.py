@@ -1,9 +1,12 @@
 import os
 import sys
 import time
+
 from copy import copy, deepcopy
 from typing import Any, Dict, TypeVar, Optional, Type, Union, Callable
 from functools import wraps
+
+
 from configs import *
 
 
@@ -50,6 +53,7 @@ class BaseCheck(metaclass=BaseType):
     _object: Optional[Dict[str, Any]] = None
     _active_object: Optional[Any] = None
     _active_backend: str = ""
+    
     #TODO : installer la priorité aux objects locaux ou aux backends
     # "backend" (priorité aux backends) or "local" (priorité aux attributs locaux)
     _priority: str = "backend" 

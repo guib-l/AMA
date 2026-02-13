@@ -7,7 +7,7 @@ import numpy as np
 
 import typing
 
-from ama.ios.parser import Parser
+from amac.ios.parser import Parser
 
 from ase import Atoms
 
@@ -125,7 +125,7 @@ def _read_xyz_ext(fileobj, is_charges=True, keep=1):
 
     nbmol = 0 
 
-    from ama.ios.utils import updateIter
+    from amac.ios.utils import updateIter
     
     show = updateIter()
 
