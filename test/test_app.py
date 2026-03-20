@@ -7,7 +7,7 @@ from typing import *
 from configs import *
 
 from amac.engine.apps import Application
-from amac.database.application import single_point
+from amac.assets.application import single_point
 
 
 if __name__ == "__main__":

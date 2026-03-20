@@ -2,7 +2,7 @@ import os
 import sys
 import time
 
-
+from amac.amac import AMAC
 
 
 if __name__ == "__main__":

@@ -21,6 +21,13 @@ class deMonNano(software):
     def __init__(self):
         pass
 
+    def input_composer(self, user_values):
+        # TODO : composer l'input de deMonNano à partir des user_values
+        return "Input data for deMonNano"
+    
+    def output_parser(self, output_data):
+        # TODO : parser les résultats de deMonNano à partir de output_data
+        return {"energy": 99999.9999, "geometry": "optimized geometry data"}
 
 
 
