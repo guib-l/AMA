@@ -11,9 +11,7 @@ import subprocess
 
 
 @dataclass
-class SimpleExecute:
-    # 'Gestion des erreurs' construite avec Copilot
-    # Model : Claude (Opus 4.5)
+class _singleExecute:
 
     commands: List[List[str]] = None
     directory: str = "./"

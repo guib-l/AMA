@@ -7,8 +7,6 @@ from typing import Any, Dict, TypeVar, Optional, Type, Union, Callable
 from functools import wraps
 
 
-from configs import *
-
 
 def mandatory_backend(required_backends: list):
     """Décorateur avec arguments pour valider le type de backend."""

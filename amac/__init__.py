@@ -1,8 +1,25 @@
 
 import os
-import sys
+import json
+
+__version__ = "0.1.1"
 
 
+# Global configuration defaults
+_GLOBAL_available_executable = {
+    "ORCA_EXECUTABLE" : None,
+    "DEMON_EXECUTABLE" : None,
+    "DFTBP_EXECUTABLE" : None,
+    "GAUSSIAN_EXECUTABLE" : None,
+}
+
+
+_GLOBAL_available_software = {
+    'deMonNano':"DEMON",
+    'DFTB+':"DFTBP",
+    'Orca':"ORCA",
+    'Gaussian':"GAUSSIAN",
+}
 
 _GLOBAL_available_methods = [
     "DFTB", 
@@ -22,24 +39,23 @@ _GLOBAL_available_methods = [
     "CASPT2"
 ]
 
-_GLOBAL_available_software = [
-    'deMonNano',
-    'DFTB+',
-    'Orca',
-    'Quantum-Espresso',
-    'Abinit',
-    'deMon2K',
-    'MOCAS',
-    'MOLPRO',
-    'Gaussian'
-]
+_GLOBAL_available_module = []
 
-_GLOBAL_available_application = [
-    "SP",
-]
+
+_GLOBAL_available_application = []
 
 
 
+
+def configure(name=None, executable=None):
+    """Set global default values for executable and basis.
+
+    Args:
+        executable: Path to the deMonNano executable.
+        basis: Basis configuration dictionary.
+    """    
+    if name is not None and name in _GLOBAL_available_software.items()[1]:
+        _GLOBAL_available_executable[f"{name}_EXECUTABLE"] = executable
 
 
 

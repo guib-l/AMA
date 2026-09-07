@@ -3,16 +3,32 @@ import sys
 
 
 import amac
-from amac.engine.execute import SimpleExecute
+from amac.engine.execute import _singleExecute
 
 
-class _base_sofware:
+class Software:
+
+    # Nom du logiciel
+    __software__    = "Software"
+
+    # Toutes méthodes accessible avec le logiciel
+    __methods__     = []
+
+    # Exetnsion de calcul possible 
+    __extension__   = []
+
+    # Module réservée à ce logiciel
+    __module__ = []
+
+    # Application réservée à ce logiciel
+    __application__ = []
 
     def __init__(
             self,
+            name="",
             workdir=".",
             commands="./",
-            execute=SimpleExecute,
+            execute=_singleExecute,
             shell=True,
             timeout=None):
         
@@ -24,19 +40,8 @@ class _base_sofware:
             shell,
             timeout
         )
+        self.name = name
 
-
-class software(_base_sofware):
-
-    def __init__(
-            self,
-            name="",
-            **kwargs):
-
-        super().__init__(**kwargs)
-
-        self.name = software
-        
     @property
     def name(self):
         return self._name
@@ -48,6 +53,16 @@ class software(_base_sofware):
                 f"Unknow software {name}. Please select an know one.")
         self._name = name
 
+
+    def _write_input(self,):
+        ...
+    
+    def _read_output(self,):
+        ...
+
+    # Fonction qui est appelé lors de l'exécution
+    def resolve(self,):
+        ...
 
 
 

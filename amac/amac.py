@@ -57,4 +57,7 @@ class AMAC:
         extracted_properties = {prop: results.get(prop) for prop in self.properties}
         return extracted_properties
 
+    def store(self,):
+        pass
+
 

@@ -4,10 +4,10 @@ from amac.engine.software import Software
 
 
 
-class deMonNano(Software):
+class dftbplus(Software):
 
     # Nom du logiciel
-    __software__    = "deMonNano"
+    __software__    = "dftb+"
 
     # Toutes méthodes accessible avec le logiciel
     __methods__     = ["DFTB","SCC-DFTB","DFTB3"]
@@ -16,15 +16,35 @@ class deMonNano(Software):
     __extension__   = ["TD","DISP"]
 
     # Modules réservée à ce logiciel
-    __module__ = ["OPT","MD","PTMC","PTMD"]
+    __module__ = ["OPT","MD"]
 
     # Appication attendue
     __application__ = ["energies","forces","mulliken_charges",
                        "dipole","eigenvalues"]
 
 
-    def __init__(self):
-        pass
+    def __init__(self, **parameters):
+
+        Software.__init__(self, )
+
+
+    # -----------------------------------------------------
+    # Reading/Writing 
+
+    def _write_input(self,):
+        ...
+    
+    def _read_output(self,):
+        ...
+
+    # -----------------------------------------------------
+    # Resolved calculation
+
+    def resolve(self,):
+        ...
+
+    # -----------------------------------------------------
+    # Application
 
     def energies(self,):
         pass
