@@ -21,8 +21,27 @@ class Orca(Software):
     __application__ = ["energies","forces","mulliken_charges",]
 
 
-    def __init__(self):
-        pass
+    def __init__(self, **parameters):
+
+        Software.__init__(self, )
+
+    # ---------------------------------------------------------------
+    # Basic functions
+    
+    def _write_input(self,):
+        ...
+    
+    def _parse_output(self,):
+        ...
+
+    # ---------------------------------------------------------------
+    # Resolved calculation
+
+    def resolve(self,):
+        ...
+
+    # ---------------------------------------------------------------
+    # Available handler
 
     def energies(self,):
         pass

@@ -1,6 +1,5 @@
 numpy
 scipy
 ase
-scikit-learn
-matplotlib
+cclib
 

@@ -19,22 +19,20 @@ class dftbplus(Software):
     __module__ = ["OPT","MD"]
 
     # Appication attendue
-    __application__ = ["energies","forces","mulliken_charges",
-                       "dipole","eigenvalues"]
+    __application__ = []
 
 
     def __init__(self, **parameters):
 
         Software.__init__(self, )
 
-
-    # -----------------------------------------------------
-    # Reading/Writing 
-
+    # ---------------------------------------------------------------
+    # Basic functions
+    
     def _write_input(self,):
         ...
     
-    def _read_output(self,):
+    def _parse_output(self,):
         ...
 
     # -----------------------------------------------------
@@ -43,8 +41,8 @@ class dftbplus(Software):
     def resolve(self,):
         ...
 
-    # -----------------------------------------------------
-    # Application
+    # ---------------------------------------------------------------
+    # Available handler
 
     def energies(self,):
         pass

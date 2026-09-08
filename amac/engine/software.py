@@ -20,7 +20,7 @@ class Software:
     # Module réservée à ce logiciel
     __module__ = []
 
-    # Application réservée à ce logiciel
+    # Application possible avec ce logiciel
     __application__ = []
 
     def __init__(
@@ -57,7 +57,7 @@ class Software:
     def _write_input(self,):
         ...
     
-    def _read_output(self,):
+    def _parse_output(self,):
         ...
 
     # Fonction qui est appelé lors de l'exécution

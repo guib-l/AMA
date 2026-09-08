@@ -2,6 +2,7 @@ import os
 import sys
 import time
 
+import numpy as np
 from ase import Atoms
 
 from amac.amac import AMAC
