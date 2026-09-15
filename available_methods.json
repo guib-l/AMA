@@ -1,0 +1,477 @@
+{
+  "KIND": "METHOD",
+  "GENERATED_BY": "python -m amac.assets.catalog",
+  "SOFTWARE": {
+    "DFTBP": "25.1"
+  },
+  "ENTRIES": {
+    "SVWN5": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "SPW92": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "PBE": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "PBEsol": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "BLYP": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "BP86": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "PW91": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "TPSS": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "SCAN": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "r2SCAN": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "B3LYP": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "B3LYP5": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "B3PW91": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "PBE0": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "TPSSh": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "M06": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "M06-2X": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "CAM-B3LYP": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "wB97X-D": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "wB97X-V": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "HSE06": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "B2PLYP": {
+      "PARENT": "DFT",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "HF": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "DFT": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "DFTB": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "METHODS/TIGHT_BINDING",
+            "KEYWORD": "DFTB",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    },
+    "DFTB1": {
+      "PARENT": "DFTB",
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "METHODS/TIGHT_BINDING/VARIANTS/DFTB1",
+            "KEYWORD": "DFTB1",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    },
+    "DFTB2": {
+      "PARENT": "DFTB",
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "METHODS/TIGHT_BINDING/VARIANTS/DFTB2",
+            "KEYWORD": "DFTB2",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    },
+    "DFTB3": {
+      "PARENT": "DFTB",
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "METHODS/TIGHT_BINDING/VARIANTS/DFTB3",
+            "KEYWORD": "DFTB3",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    },
+    "MDFTB": {
+      "PARENT": "DFTB",
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "METHODS/TIGHT_BINDING/VARIANTS/MDFTB",
+            "KEYWORD": "MDFTB",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    },
+    "LC-DFTB": {
+      "PARENT": "DFTB",
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "METHODS/TIGHT_BINDING/VARIANTS/LC-DFTB",
+            "KEYWORD": "LC-DFTB",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    },
+    "GLOBAL-HYBRID-DFTB": {
+      "PARENT": "DFTB",
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "METHODS/TIGHT_BINDING/VARIANTS/GLOBAL-HYBRID-DFTB",
+            "KEYWORD": "GLOBAL-HYBRID-DFTB",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    },
+    "CAM-DFTB": {
+      "PARENT": "DFTB",
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "METHODS/TIGHT_BINDING/VARIANTS/CAM-DFTB",
+            "KEYWORD": "CAM-DFTB",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    },
+    "XTB": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "METHODS/XTB",
+            "KEYWORD": "xTB",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    },
+    "GFN0-xTB": {
+      "PARENT": "XTB",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "GFN1-xTB": {
+      "PARENT": "XTB",
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "METHODS/XTB/VARIANTS/GFN1-xTB",
+            "KEYWORD": "GFN1-xTB",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    },
+    "GFN2-xTB": {
+      "PARENT": "XTB",
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "METHODS/XTB/VARIANTS/GFN2-xTB",
+            "KEYWORD": "GFN2-xTB",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    },
+    "IPEA1-xTB": {
+      "PARENT": "XTB",
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "METHODS/XTB/VARIANTS/IPEA1-xTB",
+            "KEYWORD": "IPEA1-xTB",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    },
+    "SEMIEMPIRICAL": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "MNDO": {
+      "PARENT": "SEMIEMPIRICAL",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "AM1": {
+      "PARENT": "SEMIEMPIRICAL",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "PM3": {
+      "PARENT": "SEMIEMPIRICAL",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "PM6": {
+      "PARENT": "SEMIEMPIRICAL",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "PM7": {
+      "PARENT": "SEMIEMPIRICAL",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "MOLLER_PLESSET": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "MP2": {
+      "PARENT": "MOLLER_PLESSET",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "SCS-MP2": {
+      "PARENT": "MOLLER_PLESSET",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "SOS-MP2": {
+      "PARENT": "MOLLER_PLESSET",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "MP3": {
+      "PARENT": "MOLLER_PLESSET",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "MP4": {
+      "PARENT": "MOLLER_PLESSET",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "COUPLED_CLUSTER": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "CC2": {
+      "PARENT": "COUPLED_CLUSTER",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "CCSD": {
+      "PARENT": "COUPLED_CLUSTER",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "CCSD(T)": {
+      "PARENT": "COUPLED_CLUSTER",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "CCSDT": {
+      "PARENT": "COUPLED_CLUSTER",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "QCISD": {
+      "PARENT": "COUPLED_CLUSTER",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "QCISD(T)": {
+      "PARENT": "COUPLED_CLUSTER",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "EOM-CCSD": {
+      "PARENT": "COUPLED_CLUSTER",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "CONFIGURATION_INTERACTION": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "CIS": {
+      "PARENT": "CONFIGURATION_INTERACTION",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "CISD": {
+      "PARENT": "CONFIGURATION_INTERACTION",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "FCI": {
+      "PARENT": "CONFIGURATION_INTERACTION",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "MULTIREFERENCE": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "CASSCF": {
+      "PARENT": "MULTIREFERENCE",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "CASPT2": {
+      "PARENT": "MULTIREFERENCE",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "NEVPT2": {
+      "PARENT": "MULTIREFERENCE",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "MRCI": {
+      "PARENT": "MULTIREFERENCE",
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    }
+  }
+}

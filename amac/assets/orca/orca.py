@@ -6,10 +6,10 @@ from amac.engine.software import FileIOSoftware
 
 
 @register_software
-class Gaussian(FileIOSoftware):
+class Orca(FileIOSoftware):
 
     # Nom du logiciel
-    NAME = "GAUSSIAN"
+    NAME = "ORCA"
 
     # Autres noms acceptés par le registre
     ALIASES = ()
@@ -18,7 +18,7 @@ class Gaussian(FileIOSoftware):
     # Command line
 
     def command(self, ctx):
-        raise NotImplementedError("Gaussian is out of scope for now, see TODO §5")
+        raise NotImplementedError("ORCA is out of scope for now, see TODO §5")
 
     # ---------------------------------------------------------------
     # Available handler

@@ -1,0 +1,166 @@
+{
+  "KIND": "MODULE",
+  "GENERATED_BY": "python -m amac.assets.catalog",
+  "SOFTWARE": {
+    "DFTBP": "25.1"
+  },
+  "ENTRIES": {
+    "SINGLE_POINT": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "MODULES/SINGLE_POINT",
+            "KEYWORD": "SINGLE_POINT",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    },
+    "GRADIENT": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "GEOMETRY_OPTIMISATION": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "MODULES/GEOMETRY_OPTIMISATION",
+            "KEYWORD": "GeometryOptimisation",
+            "EQUIVALENCE": "EXACT"
+          },
+          {
+            "LOCATION": "MODULES/GEOMETRY_OPTIMISATION_LEGACY",
+            "KEYWORD": "GEOMETRY_OPTIMISATION_LEGACY",
+            "EQUIVALENCE": "EXACT",
+            "NOTE": "Drivers dépréciés, remplacés par GeometryOptimisation."
+          }
+        ]
+      }
+    },
+    "TRANSITION_STATE_SEARCH": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "IRC": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "PES_SCAN": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "NEB": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": null
+      }
+    },
+    "HESSIAN": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "MODULES/SECOND_DERIVATIVES",
+            "KEYWORD": "SecondDerivatives",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    },
+    "FREQUENCIES": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "MODULES/MODES",
+            "KEYWORD": "MODES",
+            "EQUIVALENCE": "APPROX",
+            "NOTE": "Modes normaux et intensités IR/Raman sans thermochimie ; programme modes lancé après SecondDerivatives."
+          }
+        ]
+      }
+    },
+    "PHONONS": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "MODULES/PHONONS",
+            "KEYWORD": "PHONONS",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    },
+    "MOLECULAR_DYNAMICS": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "MODULES/MOLECULAR_DYNAMICS",
+            "KEYWORD": "VelocityVerlet",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    },
+    "ELECTRON_DYNAMICS": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "MODULES/ELECTRON_DYNAMICS",
+            "KEYWORD": "ElectronDynamics",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    },
+    "ELECTRON_TRANSPORT": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "MODULES/TRANSPORT",
+            "KEYWORD": "Transport",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    },
+    "EXTERNAL_DRIVER": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "MODULES/SOCKET",
+            "KEYWORD": "Socket",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    },
+    "ORBITAL_PLOT": {
+      "PARENT": null,
+      "SOFTWARE": {
+        "DFTBP": [
+          {
+            "LOCATION": "MODULES/WAVEPLOT",
+            "KEYWORD": "WAVEPLOT",
+            "EQUIVALENCE": "EXACT"
+          }
+        ]
+      }
+    }
+  }
+}

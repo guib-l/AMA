@@ -1,0 +1,23 @@
+{
+    "CATALOG": "MODULES",
+    "KIND": "MODULE",
+    "DESCRIPTION": "Modules canoniques : COMMENT le calcul est utilisé (run type).",
+
+    "ENTRIES": {
+        "SINGLE_POINT": {"ALIASES": ["SP", "ENERGY"], "DESCRIPTION": "Calcul sur la géométrie d'entrée."},
+        "GRADIENT": {"ALIASES": ["FORCES", "ENGRAD"], "DESCRIPTION": "Énergie et gradient sur la géométrie d'entrée."},
+        "GEOMETRY_OPTIMISATION": {"ALIASES": ["OPT", "GEOMETRY_OPTIMIZATION", "RELAX"], "DESCRIPTION": "Recherche d'un minimum (et optionnellement de la maille)."},
+        "TRANSITION_STATE_SEARCH": {"ALIASES": ["TS_SEARCH", "OPTTS"], "DESCRIPTION": "Recherche d'un point selle d'ordre 1. TS désigne la dispersion de Tkatchenko-Scheffler."},
+        "IRC": {"ALIASES": ["INTRINSIC_REACTION_COORDINATE"], "DESCRIPTION": "Chemin de réaction intrinsèque depuis un état de transition."},
+        "PES_SCAN": {"ALIASES": ["RELAXED_SCAN", "SURFACE_SCAN"], "DESCRIPTION": "Balayage de la surface d'énergie potentielle."},
+        "NEB": {"ALIASES": ["NUDGED_ELASTIC_BAND"], "DESCRIPTION": "Chemin d'énergie minimale entre deux géométries."},
+        "HESSIAN": {"ALIASES": ["SECOND_DERIVATIVES"], "DESCRIPTION": "Dérivées secondes de l'énergie seules."},
+        "FREQUENCIES": {"ALIASES": ["FREQ", "VIBRATIONAL_ANALYSIS"], "DESCRIPTION": "Hessienne, modes normaux, intensités et thermochimie."},
+        "PHONONS": {"DESCRIPTION": "Dispersion de phonons d'un système périodique."},
+        "MOLECULAR_DYNAMICS": {"ALIASES": ["MD", "BOMD"], "DESCRIPTION": "Dynamique moléculaire sur la surface de l'état fondamental."},
+        "ELECTRON_DYNAMICS": {"ALIASES": ["RT-TDDFT", "EHRENFEST", "REAL_TIME_PROPAGATION"], "DESCRIPTION": "Propagation en temps réel de la densité électronique (et des noyaux en Ehrenfest)."},
+        "ELECTRON_TRANSPORT": {"ALIASES": ["NEGF", "TRANSPORT"], "DESCRIPTION": "Transport électronique par fonctions de Green hors équilibre."},
+        "EXTERNAL_DRIVER": {"ALIASES": ["SOCKET", "I-PI"], "DESCRIPTION": "Géométrie pilotée par un programme externe."},
+        "ORBITAL_PLOT": {"ALIASES": ["CUBE", "WAVEPLOT"], "DESCRIPTION": "Orbitales ou densités sur grille (fichiers cube)."}
+    }
+}

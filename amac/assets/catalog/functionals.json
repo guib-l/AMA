@@ -1,0 +1,52 @@
+{
+    "CATALOG": "FUNCTIONALS",
+    "KIND": "METHOD",
+    "PARENT": "DFT",
+    "DESCRIPTION": "Fonctionnelles d'échange-corrélation, variantes de la méthode DFT. LIBXC donne les noms des composantes dans Libxc ; EXX la fraction globale d'échange exact.",
+
+    "ENTRIES": {
+        "SVWN5": {"CLASS": "LDA", "LIBXC": ["LDA_X", "LDA_C_VWN"], "DESCRIPTION": "Échange de Slater et corrélation VWN5."},
+        "SPW92": {"CLASS": "LDA", "LIBXC": ["LDA_X", "LDA_C_PW"], "DESCRIPTION": "Échange de Slater et corrélation de Perdew-Wang 92."},
+
+        "PBE": {"CLASS": "GGA", "ALIASES": ["PBE96"], "LIBXC": ["GGA_X_PBE", "GGA_C_PBE"]},
+        "PBEsol": {"CLASS": "GGA", "LIBXC": ["GGA_X_PBE_SOL", "GGA_C_PBE_SOL"]},
+        "BLYP": {"CLASS": "GGA", "LIBXC": ["GGA_X_B88", "GGA_C_LYP"]},
+        "BP86": {"CLASS": "GGA", "LIBXC": ["GGA_X_B88", "GGA_C_P86"]},
+        "PW91": {"CLASS": "GGA", "LIBXC": ["GGA_X_PW91", "GGA_C_PW91"]},
+
+        "TPSS": {"CLASS": "META_GGA", "LIBXC": ["MGGA_X_TPSS", "MGGA_C_TPSS"]},
+        "SCAN": {"CLASS": "META_GGA", "LIBXC": ["MGGA_X_SCAN", "MGGA_C_SCAN"]},
+        "r2SCAN": {"CLASS": "META_GGA", "LIBXC": ["MGGA_X_R2SCAN", "MGGA_C_R2SCAN"]},
+
+        "B3LYP": {
+            "CLASS": "HYBRID_GGA",
+            "EXX": 0.20,
+            "LIBXC": ["HYB_GGA_XC_B3LYP"],
+            "DESCRIPTION": "Composante locale VWN-RPA (VWN3) : définition de Gaussian et de Libxc. Dans ORCA, c'est B3LYP/G ; le B3LYP d'ORCA est B3LYP5."
+        },
+        "B3LYP5": {
+            "CLASS": "HYBRID_GGA",
+            "EXX": 0.20,
+            "LIBXC": ["HYB_GGA_XC_B3LYP5"],
+            "DESCRIPTION": "Composante locale VWN5 : B3LYP d'ORCA et de Turbomole."
+        },
+        "B3PW91": {"CLASS": "HYBRID_GGA", "EXX": 0.20, "LIBXC": ["HYB_GGA_XC_B3PW91"]},
+        "PBE0": {"CLASS": "HYBRID_GGA", "EXX": 0.25, "ALIASES": ["PBE1PBE", "PBEH"], "LIBXC": ["HYB_GGA_XC_PBEH"]},
+
+        "TPSSh": {"CLASS": "HYBRID_META_GGA", "EXX": 0.10, "LIBXC": ["HYB_MGGA_XC_TPSSH"]},
+        "M06": {"CLASS": "HYBRID_META_GGA", "EXX": 0.27, "LIBXC": ["HYB_MGGA_X_M06", "MGGA_C_M06"]},
+        "M06-2X": {"CLASS": "HYBRID_META_GGA", "EXX": 0.54, "ALIASES": ["M062X"], "LIBXC": ["HYB_MGGA_X_M06_2X", "MGGA_C_M06_2X"]},
+
+        "CAM-B3LYP": {"CLASS": "RANGE_SEPARATED_HYBRID", "ALIASES": ["CAMB3LYP"], "LIBXC": ["HYB_GGA_XC_CAM_B3LYP"]},
+        "wB97X-D": {
+            "CLASS": "RANGE_SEPARATED_HYBRID",
+            "ALIASES": ["ωB97X-D", "WB97XD"],
+            "LIBXC": ["HYB_GGA_XC_WB97X_D"],
+            "DESCRIPTION": "Chai et Head-Gordon 2008, dispersion empirique incluse. Distinct de ωB97X-D3 (ORCA)."
+        },
+        "wB97X-V": {"CLASS": "RANGE_SEPARATED_HYBRID", "ALIASES": ["ωB97X-V", "WB97XV"], "LIBXC": ["HYB_GGA_XC_WB97X_V"], "DESCRIPTION": "Corrélation non locale VV10 incluse."},
+        "HSE06": {"CLASS": "SCREENED_HYBRID", "ALIASES": ["HSEH1PBE"], "LIBXC": ["HYB_GGA_XC_HSE06"]},
+
+        "B2PLYP": {"CLASS": "DOUBLE_HYBRID", "EXX": 0.53, "PT2": 0.27, "LIBXC": ["HYB_GGA_XC_B2PLYP"]}
+    }
+}

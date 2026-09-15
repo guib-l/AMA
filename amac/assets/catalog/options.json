@@ -1,0 +1,107 @@
+{
+    "CATALOG": "OPTIONS",
+    "KIND": "OPTION",
+    "DESCRIPTION": "Axes d'options indépendants de la méthode. Une entrée de premier niveau est un axe ; ses variantes sont les valeurs possibles. Un axe sans variante est une option simple.",
+
+    "ENTRIES": {
+        "REFERENCE": {
+            "DESCRIPTION": "Traitement du spin de la fonction d'onde ou de la densité de référence.",
+            "VARIANTS": {
+                "RESTRICTED": {"ALIASES": ["RHF", "RKS", "CLOSED_SHELL"]},
+                "UNRESTRICTED": {"ALIASES": ["UHF", "UKS", "COLLINEAR_SPIN"]},
+                "RESTRICTED_OPEN": {"ALIASES": ["ROHF", "ROKS"]},
+                "GENERALISED": {"ALIASES": ["GHF", "GKS", "NONCOLLINEAR_SPIN"], "DESCRIPTION": "Spin non colinéaire."}
+            }
+        },
+
+        "DISPERSION": {
+            "DESCRIPTION": "Correction de dispersion (van der Waals).",
+            "VARIANTS": {
+                "D2": {"ALIASES": ["DFT-D2"]},
+                "D3(0)": {"ALIASES": ["D3", "D3ZERO", "DFT-D3"], "DESCRIPTION": "D3 à amortissement nul."},
+                "D3(BJ)": {"ALIASES": ["D3BJ"], "DESCRIPTION": "D3 à amortissement de Becke-Johnson."},
+                "D3M(BJ)": {"ALIASES": ["D3MBJ"], "DESCRIPTION": "D3(BJ) modifié (Smith et al.)."},
+                "D4": {"ALIASES": ["DFT-D4"]},
+                "TS": {"ALIASES": ["TKATCHENKO-SCHEFFLER"]},
+                "MBD": {"ALIASES": ["MBD@RSSCS"], "DESCRIPTION": "Dispersion many-body."},
+                "VV10": {"ALIASES": ["NL"], "DESCRIPTION": "Corrélation non locale de Vydrov et Van Voorhis."},
+                "LENNARD_JONES": {"ALIASES": ["LJ"], "DESCRIPTION": "Potentiel de paire de Lennard-Jones (paramètres UFF ou explicites)."},
+                "SLATER_KIRKWOOD": {"DESCRIPTION": "Modèle atomique polarisable de Slater-Kirkwood."}
+            }
+        },
+
+        "SOLVATION": {
+            "DESCRIPTION": "Solvatation implicite.",
+            "VARIANTS": {
+                "PCM": {"ALIASES": ["IEFPCM"]},
+                "CPCM": {},
+                "SMD": {},
+                "COSMO": {},
+                "GB": {"ALIASES": ["GENERALISED_BORN", "GENERALIZED_BORN"], "DESCRIPTION": "Born généralisé, éventuellement complété d'un terme de surface (GBSA)."},
+                "ALPB": {"DESCRIPTION": "Analytical linearized Poisson-Boltzmann."},
+                "SASA": {"DESCRIPTION": "Terme non polaire de surface accessible au solvant seul."}
+            }
+        },
+
+        "INTEGRAL_APPROXIMATION": {
+            "DESCRIPTION": "Approximation des intégrales biélectroniques.",
+            "VARIANTS": {
+                "RI-J": {"ALIASES": ["RI", "DENSITY_FITTING"], "DESCRIPTION": "Résolution de l'identité pour le terme de Coulomb."},
+                "RI-JK": {"ALIASES": ["RIJK"], "DESCRIPTION": "Résolution de l'identité pour Coulomb et échange."},
+                "RIJCOSX": {"DESCRIPTION": "RI pour Coulomb, chain-of-spheres pour l'échange."}
+            }
+        },
+
+        "LOCAL_CORRELATION": {
+            "DESCRIPTION": "Approximation locale des méthodes corrélées.",
+            "VARIANTS": {
+                "DLPNO": {"DESCRIPTION": "Domain-based local pair natural orbitals."},
+                "LPNO": {"DESCRIPTION": "Local pair natural orbitals."}
+            }
+        },
+
+        "EXCITED_STATES": {
+            "DESCRIPTION": "Traitement des états excités appliqué à la méthode de l'état fondamental.",
+            "VARIANTS": {
+                "LR-TDDFT": {"ALIASES": ["TDDFT", "TD-DFT", "CASIDA", "TD-DFTB", "LR-TDDFTB"], "DESCRIPTION": "Réponse linéaire (équations de Casida) sur l'hamiltonien de l'état fondamental."},
+                "TDA": {"ALIASES": ["TAMM-DANCOFF"], "DESCRIPTION": "Approximation de Tamm-Dancoff de la réponse linéaire."},
+                "PP-RPA": {"DESCRIPTION": "RPA particule-particule."},
+                "DELTA-SCF": {"ALIASES": ["ΔSCF", "MOM", "NON-AUFBAU"], "DESCRIPTION": "État excité obtenu par occupation non-Aufbau, optimisé comme un état fondamental."},
+                "REKS": {"ALIASES": ["SSR", "SA-REKS"], "DESCRIPTION": "DFT d'ensemble à occupations fractionnaires (REKS, SA-REKS, SI-SA-REKS)."}
+            }
+        },
+
+        "SMEARING": {
+            "DESCRIPTION": "Occupation des niveaux à température électronique finie.",
+            "VARIANTS": {
+                "FERMI_DIRAC": {"ALIASES": ["FERMI"]},
+                "GAUSSIAN_SMEARING": {"ALIASES": ["GAUSS"]},
+                "METHFESSEL_PAXTON": {"ALIASES": ["M-P"]},
+                "MARZARI_VANDERBILT": {"ALIASES": ["COLD_SMEARING"]}
+            }
+        },
+
+        "KPOINTS": {
+            "DESCRIPTION": "Échantillonnage de la zone de Brillouin.",
+            "VARIANTS": {
+                "MONKHORST_PACK": {"ALIASES": ["MP_GRID"], "DESCRIPTION": "Grille régulière, avec décalage éventuel."},
+                "GAMMA_ONLY": {"ALIASES": ["GAMMA"]},
+                "EXPLICIT_KPOINTS": {"DESCRIPTION": "Liste de points et de poids."},
+                "BAND_PATH": {"ALIASES": ["KLINES"], "DESCRIPTION": "Chemin dans la zone de Brillouin pour une structure de bandes."}
+            }
+        },
+
+        "HUBBARD_U": {
+            "ALIASES": ["DFT+U", "LDA+U"],
+            "DESCRIPTION": "Correction de Hubbard sur des orbitales localisées ; la variante est le terme de double comptage.",
+            "VARIANTS": {
+                "FLL": {"ALIASES": ["FULLY_LOCALISED_LIMIT"]},
+                "AMF": {"ALIASES": ["AROUND_MEAN_FIELD"]}
+            }
+        },
+
+        "SPIN_ORBIT_COUPLING": {"ALIASES": ["SOC"], "DESCRIPTION": "Couplage spin-orbite."},
+        "ELECTRIC_FIELD": {"ALIASES": ["EFIELD"], "DESCRIPTION": "Champ électrique externe uniforme."},
+        "POINT_CHARGES": {"ALIASES": ["EXTERNAL_CHARGES"], "DESCRIPTION": "Charges ponctuelles externes (plongement électrostatique QM/MM)."}
+    }
+}

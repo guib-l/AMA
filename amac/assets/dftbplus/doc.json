@@ -1,0 +1,962 @@
+{
+    "SOFTWARE": "DFTBP",
+    "VERSION": "25.1",
+    "REFERENCE": "dftbplus_manual.pdf (DFTB+ 25.1 user manual)",
+    "SYNTAX": "TREE",
+    "EXECUTION": ["FILEIO", "INPROCESS"],
+
+    "INPUT": {
+        "FILENAME": "dftb_in.hsd",
+        "PROCESSED_INPUT": "dftb_pin.hsd",
+        "BINARY": "dftb+",
+        "ARGUMENTS": [],
+        "STDIN": false,
+        "ENVIRONMENT": {
+            "DFTB_PREFIX": "Répertoire des fichiers Slater-Koster.",
+            "DFTBPLUS_PARAM_DIR": "Répertoire additionnel de recherche des fichiers de paramètres (ChIMES, tblite).",
+            "OMP_NUM_THREADS": "Nombre de threads OpenMP."
+        },
+        "FORMAT_DEFAULTS": {
+            "ASSIGN": " = ",
+            "OPEN": "{",
+            "CLOSE": "}",
+            "PADDING": "  ",
+            "SEPARATOR": " ",
+            "NEWLINE": true,
+            "UPPERCASE": false,
+            "LOWERCASE": false,
+            "BOOLEAN": ["Yes", "No"],
+            "MODIFIER": "[{unit}]",
+            "COMMENT": "#",
+            "INCLUDE": "<<< \"{path}\""
+        },
+        "ROOT_BLOCKS": {
+            "Geometry": {"MANDATORY": true, "PAGE": 12},
+            "Hamiltonian": {"MANDATORY": true, "PAGE": 31},
+            "Driver": {"MANDATORY": false, "DEFAULT": "{}", "PAGE": 15},
+            "Options": {"MANDATORY": false, "PAGE": 87},
+            "Analysis": {"MANDATORY": false, "PAGE": 89},
+            "ExcitedState": {"MANDATORY": false, "PAGE": 95},
+            "ElectronDynamics": {"MANDATORY": false, "PAGE": 99},
+            "Reks": {"MANDATORY": false, "PAGE": 105},
+            "Transport": {"MANDATORY": false, "PAGE": 125},
+            "ParserOptions": {"MANDATORY": false, "PAGE": 108},
+            "Parallel": {"MANDATORY": false, "PAGE": 109},
+            "InputVersion": {"MANDATORY": false}
+        },
+        "GEOMETRY": {
+            "PATH": ["Geometry"],
+            "TYPE": "TREE",
+            "MANDATORY": true,
+            "VARIANTS": {
+                "EXPLICIT": {
+                    "KEYWORD": null,
+                    "ARGUMENTS": {
+                        "Periodic": {"TYPE": "FLAG", "DEFAULT": false},
+                        "Helical": {"TYPE": "FLAG", "DEFAULT": false},
+                        "LatticeVectors": {"TYPE": "TABLE", "SHAPE": [3, 3], "UNIT": "length", "MANDATORY_IF": [{"PATH": ["Geometry", "Periodic"], "VALUE": true}]},
+                        "TypeNames": {"TYPE": "LIST", "SUBTYPE": "STRING", "MANDATORY": true},
+                        "TypesAndCoordinates": {"TYPE": "TABLE", "UNIT": "length", "MODIFIERS": ["relative", "Angstrom", "Bohr"], "MANDATORY": true}
+                    }
+                },
+                "GEN": {"KEYWORD": "GenFormat", "FILE_EXTENSION": ".gen", "DESCRIPTION": "Format gen natif DFTB+ (annexe D du manuel)."},
+                "XYZ": {"KEYWORD": "xyzFormat", "FILE_EXTENSION": ".xyz", "DESCRIPTION": "Géométries moléculaires au format xyz."},
+                "VASP": {"KEYWORD": "VaspFormat", "FILE_EXTENSION": "", "DESCRIPTION": "POSCAR / CONTCAR (VASP 4.x et 5.x), périodique uniquement."}
+            }
+        }
+    },
+
+    "MODULES": {
+        "SINGLE_POINT": {
+            "KEYWORD": "",
+            "ALIASES": ["SP", "ENERGY", "STATIC"],
+            "CANONICAL": "SINGLE_POINT",
+            "TARGET": ["Driver"],
+            "PERIODIC": "BOTH",
+            "ARGUMENTS": {},
+            "DESCRIPTION": "Calcul statique sur la géométrie d'entrée (Driver = {}).",
+            "PAGE": 15
+        },
+
+        "GEOMETRY_OPTIMISATION": {
+            "KEYWORD": "GeometryOptimisation",
+            "ALIASES": ["OPT", "GeometryOptimization", "RELAX"],
+            "CANONICAL": "GEOMETRY_OPTIMISATION",
+            "TARGET": ["Driver"],
+            "PERIODIC": "BOTH",
+            "ARGUMENTS": {
+                "Optimiser": {
+                    "TYPE": "CHOICE",
+                    "DEFAULT": "Rational",
+                    "ALIASES": ["Optimizer"],
+                    "VALUES": ["Rational", "LBFGS", "FIRE", "SteepestDescent"],
+                    "ARGUMENTS": {
+                        "Rational": {
+                            "TYPE": "BLOCK",
+                            "ARGUMENTS": {
+                                "DiagLimit": {"TYPE": "REAL", "DEFAULT": 0.01, "DESCRIPTION": "Limite basse des éléments diagonaux de la Hessienne dans la mise à jour BFGS."}
+                            },
+                            "DESCRIPTION": "Optimiseur par fonction rationnelle (Hessienne augmentée, mise à jour type BFGS). Coût quadratique."
+                        },
+                        "LBFGS": {
+                            "TYPE": "BLOCK",
+                            "ARGUMENTS": {
+                                "Memory": {"TYPE": "INTEGER", "DEFAULT": 20, "RANGE": [1, 1000], "DESCRIPTION": "Nombre de déplacements et gradients passés conservés."}
+                            },
+                            "DESCRIPTION": "BFGS à mémoire limitée, coût linéaire."
+                        },
+                        "FIRE": {
+                            "TYPE": "BLOCK",
+                            "ARGUMENTS": {
+                                "nMin": {"TYPE": "INTEGER", "DEFAULT": 5},
+                                "aPar": {"TYPE": "REAL", "DEFAULT": 0.1},
+                                "fInc": {"TYPE": "REAL", "DEFAULT": 1.1},
+                                "fDec": {"TYPE": "REAL", "DEFAULT": 0.5},
+                                "fAlpha": {"TYPE": "REAL", "DEFAULT": 0.99},
+                                "StepSize": {"TYPE": "REAL", "DEFAULT": 1.0, "UNIT": "time"}
+                            },
+                            "DESCRIPTION": "Fast inertial relaxation engine (Bitzek et al.), coût linéaire."
+                        },
+                        "SteepestDescent": {
+                            "TYPE": "BLOCK",
+                            "ARGUMENTS": {
+                                "ScalingFactor": {"TYPE": "REAL", "DEFAULT": 1.0}
+                            },
+                            "DESCRIPTION": "Descente de gradient simple."
+                        }
+                    }
+                },
+                "MovedAtoms": {"TYPE": "LIST", "DEFAULT": "1:-1", "DESCRIPTION": "Indices des atomes mobiles (expressions de sélection, annexe B.7)."},
+                "LatticeOpt": {"TYPE": "FLAG", "DEFAULT": false, "DESCRIPTION": "Optimise aussi les vecteurs de maille."},
+                "FixAngles": {"TYPE": "FLAG", "DEFAULT": false, "MANDATORY_IF": [], "EXCLUDE_IF": [{"PATH": ["Driver", "GeometryOptimisation", "Isotropic"], "VALUE": true}], "CONDITION": "LatticeOpt = Yes"},
+                "FixLengths": {"TYPE": "LIST", "SUBTYPE": "FLAG", "LENGTH": 3, "DEFAULT": [false, false, false], "CONDITION": "LatticeOpt = Yes, FixAngles = Yes"},
+                "Isotropic": {"TYPE": "FLAG", "DEFAULT": false, "CONDITION": "LatticeOpt = Yes"},
+                "Convergence": {
+                    "TYPE": "BLOCK",
+                    "ARGUMENTS": {
+                        "Energy": {"TYPE": "REAL", "DEFAULT": "inf", "UNIT": "energy"},
+                        "GradElem": {"TYPE": "REAL", "DEFAULT": 1e-4, "UNIT": "force", "DESCRIPTION": "Élément de gradient max (Hartree/Bohr)."},
+                        "GradNorm": {"TYPE": "REAL", "DEFAULT": "inf", "UNIT": "force"},
+                        "DispElem": {"TYPE": "REAL", "DEFAULT": "inf", "UNIT": "length"},
+                        "DispNorm": {"TYPE": "REAL", "DEFAULT": "inf", "UNIT": "length"}
+                    },
+                    "DESCRIPTION": "Seuils de convergence. Une valeur très grande désactive le critère."
+                },
+                "MaxSteps": {"TYPE": "INTEGER", "DEFAULT": 200, "DESCRIPTION": "-1 = nombre d'itérations quasi illimité."},
+                "OutputPrefix": {"TYPE": "STRING", "DEFAULT": "geo_end"},
+                "AppendGeometries": {"TYPE": "FLAG", "DEFAULT": false}
+            },
+            "DESCRIPTION": "Optimisation de géométrie (et optionnellement de maille).",
+            "PAGE": 16
+        },
+
+        "GEOMETRY_OPTIMISATION_LEGACY": {
+            "KEYWORD": null,
+            "TARGET": ["Driver"],
+            "DEPRECATED": true,
+            "CANONICAL": {"GEOMETRY_OPTIMISATION": {"NOTE": "Drivers dépréciés, remplacés par GeometryOptimisation."}},
+            "VARIANTS": {
+                "SteepestDescent": {"KEYWORD": "SteepestDescent", "PAGE": 19},
+                "ConjugateGradient": {"KEYWORD": "ConjugateGradient", "PAGE": 21},
+                "gDIIS": {"KEYWORD": "gDIIS", "PAGE": 21, "ARGUMENTS": {"Alpha": {"TYPE": "REAL", "DEFAULT": 0.1}, "Generations": {"TYPE": "INTEGER", "DEFAULT": 8}}},
+                "LBFGS": {"KEYWORD": "LBFGS", "PAGE": 22, "ARGUMENTS": {"Memory": {"TYPE": "INTEGER", "DEFAULT": 20}, "LineSearch": {"TYPE": "FLAG", "DEFAULT": false}, "SetMaxStep": {"TYPE": "FLAG", "DEFAULT": false}}},
+                "FIRE": {"KEYWORD": "FIRE", "PAGE": 22, "ARGUMENTS": {"TimeStep": {"TYPE": "REAL", "DEFAULT": 1.0, "UNIT": "time"}}}
+            },
+            "ARGUMENTS": {
+                "MovedAtoms": {"TYPE": "LIST", "DEFAULT": "1:-1"},
+                "MaxForceComponent": {"TYPE": "REAL", "DEFAULT": 1e-4, "UNIT": "force"},
+                "MaxSteps": {"TYPE": "INTEGER", "DEFAULT": 200},
+                "StepSize": {"TYPE": "REAL", "DEFAULT": 100.0, "UNIT": "time"},
+                "OutputPrefix": {"TYPE": "STRING", "DEFAULT": "geo_end"},
+                "AppendGeometries": {"TYPE": "FLAG", "DEFAULT": false},
+                "Constraints": {"TYPE": "TABLE", "DEFAULT": null, "DESCRIPTION": "Par contrainte : index d'atome + vecteur (x,y,z) le long duquel l'atome ne peut pas bouger."},
+                "LatticeOpt": {"TYPE": "FLAG", "DEFAULT": false, "CONDITION": "Periodic = Yes"},
+                "FixAngles": {"TYPE": "FLAG", "DEFAULT": false},
+                "FixLengths": {"TYPE": "LIST", "SUBTYPE": "FLAG", "LENGTH": 3, "DEFAULT": [false, false, false]},
+                "Isotropic": {"TYPE": "FLAG", "DEFAULT": false},
+                "Pressure": {"TYPE": "REAL", "DEFAULT": 0.0, "UNIT": "pressure"},
+                "MaxAtomStep": {"TYPE": "REAL", "DEFAULT": 0.2},
+                "MaxLatticeStep": {"TYPE": "REAL", "DEFAULT": 0.2}
+            },
+            "DESCRIPTION": "Anciens drivers d'optimisation, dépréciés et voués à disparaître : utiliser GeometryOptimisation."
+        },
+
+        "SECOND_DERIVATIVES": {
+            "KEYWORD": "SecondDerivatives",
+            "ALIASES": ["HESSIAN", "FREQ"],
+            "CANONICAL": "HESSIAN",
+            "TARGET": ["Driver"],
+            "PERIODIC": "BOTH",
+            "ARGUMENTS": {
+                "Atoms": {"TYPE": "LIST", "DEFAULT": "1:-1", "DESCRIPTION": "Atomes pour lesquels les dérivées secondes sont calculées."},
+                "MovedAtoms": {"TYPE": "LIST", "DEFAULT": null, "DESCRIPTION": "Sous-ensemble déplacé : produit une sous-matrice rectangulaire de la Hessienne (indices contigus obligatoires)."},
+                "Delta": {"TYPE": "REAL", "DEFAULT": 1e-4, "UNIT": "length", "DESCRIPTION": "Pas de la différence finie."}
+            },
+            "PRODUCES": ["hessian.out", "born.out", "bornderiv.out"],
+            "REQUIRES_NOTE": "Exige un SCCTolerance resserré (1e-7 ou mieux) sous peine de fréquences non physiques. Les dérivées périodiques sont obtenues en q = 0.",
+            "CHAINED_WITH": "MODES",
+            "DESCRIPTION": "Dérivées secondes de l'énergie (Hessienne), charges de Born et dérivées de polarisabilité, par différences finies des forces.",
+            "PAGE": 23
+        },
+
+        "MOLECULAR_DYNAMICS": {
+            "KEYWORD": "VelocityVerlet",
+            "ALIASES": ["MD"],
+            "CANONICAL": "MOLECULAR_DYNAMICS",
+            "TARGET": ["Driver"],
+            "PERIODIC": "BOTH",
+            "ARGUMENTS": {
+                "Steps": {"TYPE": "INTEGER", "MANDATORY": true},
+                "TimeStep": {"TYPE": "REAL", "MANDATORY": true, "UNIT": "time"},
+                "MovedAtoms": {"TYPE": "LIST", "DEFAULT": "1:-1"},
+                "KeepStationary": {"TYPE": "FLAG", "DEFAULT": true, "DESCRIPTION": "Retire le mouvement de translation d'ensemble."},
+                "Thermostat": {
+                    "TYPE": "CHOICE",
+                    "MANDATORY": true,
+                    "VALUES": ["None", "Andersen", "Berendsen", "NoseHoover"],
+                    "ARGUMENTS": {
+                        "None": {
+                            "TYPE": "BLOCK",
+                            "ENSEMBLE": "NVE",
+                            "ARGUMENTS": {"InitialTemperature": {"TYPE": "REAL", "UNIT": "energy", "DESCRIPTION": "Vitesses initiales tirées d'une distribution de Maxwell-Boltzmann."}}
+                        },
+                        "Andersen": {
+                            "TYPE": "BLOCK",
+                            "ENSEMBLE": "NVT",
+                            "ARGUMENTS": {
+                                "Temperature": {"TYPE": "REAL", "UNIT": "energy", "MANDATORY": true, "ALTERNATIVE": "TemperatureProfile"},
+                                "ReselectProbability": {"TYPE": "REAL"},
+                                "ReselectIndividually": {"TYPE": "FLAG"},
+                                "AdaptFillingTemp": {"TYPE": "FLAG", "DEFAULT": false}
+                            }
+                        },
+                        "Berendsen": {
+                            "TYPE": "BLOCK",
+                            "ENSEMBLE": "NVT",
+                            "ARGUMENTS": {
+                                "Temperature": {"TYPE": "REAL", "UNIT": "energy", "MANDATORY": true},
+                                "CouplingStrength": {"TYPE": "REAL", "EXCLUDE_IF": [{"PATH": ["Timescale"], "VALUE": "SET"}]},
+                                "Timescale": {"TYPE": "REAL", "UNIT": "time", "EXCLUDE_IF": [{"PATH": ["CouplingStrength"], "VALUE": "SET"}]},
+                                "AdaptFillingTemp": {"TYPE": "FLAG", "DEFAULT": false}
+                            },
+                            "WARNING": "Pas de fluctuations canoniques correctes (« flying ice cube »)."
+                        },
+                        "NoseHoover": {
+                            "TYPE": "BLOCK",
+                            "ENSEMBLE": "NVT",
+                            "ARGUMENTS": {
+                                "Temperature": {"TYPE": "REAL", "UNIT": "energy", "MANDATORY": true},
+                                "CouplingStrength": {"TYPE": "REAL", "UNIT": "frequency", "MANDATORY": true},
+                                "ChainLength": {"TYPE": "INTEGER", "DEFAULT": 3},
+                                "Order": {"TYPE": "INTEGER", "DEFAULT": 3},
+                                "IntegratorSteps": {"TYPE": "INTEGER", "DEFAULT": 1},
+                                "Restart": {"TYPE": "BLOCK", "ARGUMENTS": {"x": {"TYPE": "LIST"}, "v": {"TYPE": "LIST"}, "g": {"TYPE": "LIST"}}},
+                                "AdaptFillingTemp": {"TYPE": "FLAG", "DEFAULT": false}
+                            }
+                        }
+                    }
+                },
+                "Barostat": {
+                    "TYPE": "BLOCK",
+                    "CONDITION": "Periodic = Yes",
+                    "ENSEMBLE": "NPT",
+                    "DESCRIPTION": "Barostat de Berendsen.",
+                    "PAGE": 27
+                },
+                "OutputPrefix": {"TYPE": "STRING", "DEFAULT": "geo_end"},
+                "MDRestartFrequency": {"TYPE": "INTEGER", "DEFAULT": 1},
+                "Velocities": {"TYPE": "TABLE", "UNIT": "velocity", "DESCRIPTION": "Vitesses initiales explicites (une ligne par atome)."},
+                "Xlbomd": {"TYPE": "BLOCK", "PAGE": 28, "DESCRIPTION": "Dynamique lagrangienne étendue (accélération des MD SCC)."},
+                "XlbomdFast": {"TYPE": "BLOCK", "PAGE": 28},
+                "Masses": {"TYPE": "BLOCK", "PAGE": 30, "DESCRIPTION": "Surcharge les masses atomiques des fichiers SK."},
+                "Plumed": {"TYPE": "FLAG", "DEFAULT": false, "REQUIRES_BUILD": "Plumed", "DESCRIPTION": "Métadynamique via plumed.dat."}
+            },
+            "PRODUCES": ["md.out", "geo_end.xyz"],
+            "DESCRIPTION": "Dynamique moléculaire Verlet-vitesse avec thermostats et barostat optionnels.",
+            "PAGE": 24
+        },
+
+        "ELECTRON_DYNAMICS": {
+            "KEYWORD": "ElectronDynamics",
+            "ALIASES": ["RT-TDDFTB", "EHRENFEST"],
+            "CANONICAL": "ELECTRON_DYNAMICS",
+            "TARGET": ["ElectronDynamics"],
+            "PERIODIC": "BOTH",
+            "COMPATIBLE_METHODS": ["DFTB", "XTB"],
+            "ARGUMENTS": {
+                "Steps": {"TYPE": "INTEGER", "MANDATORY": true},
+                "TimeStep": {"TYPE": "REAL", "MANDATORY": true, "UNIT": "time"},
+                "FieldStrength": {"TYPE": "REAL", "UNIT": "electric_field"},
+                "Perturbation": {"TYPE": "CHOICE", "DEFAULT": "None", "VALUES": ["None", "Kick", "Laser"], "PAGE": 102},
+                "EnvelopeShape": {"TYPE": "CHOICE", "DEFAULT": "Constant", "CONDITION": "Perturbation = Laser", "PAGE": 104},
+                "Populations": {"TYPE": "FLAG", "DEFAULT": false},
+                "Restart": {"TYPE": "FLAG", "DEFAULT": false},
+                "RestartFromAscii": {"TYPE": "FLAG", "DEFAULT": false},
+                "WriteRestart": {"TYPE": "FLAG", "DEFAULT": true},
+                "WriteAsciiRestart": {"TYPE": "FLAG", "DEFAULT": false},
+                "WriteFrequency": {"TYPE": "INTEGER", "DEFAULT": 50},
+                "RestartFrequency": {"TYPE": "INTEGER", "DEFAULT": "Steps/10"},
+                "Forces": {"TYPE": "FLAG", "DEFAULT": false},
+                "IonDynamics": {"TYPE": "FLAG", "DEFAULT": false, "DESCRIPTION": "Propage aussi les noyaux (Ehrenfest)."},
+                "InitialTemperature": {"TYPE": "REAL", "UNIT": "energy", "CONDITION": "IonDynamics = Yes"},
+                "MovedAtoms": {"TYPE": "LIST", "DEFAULT": "1:-1", "CONDITION": "IonDynamics = Yes"},
+                "Velocities": {"TYPE": "TABLE", "CONDITION": "IonDynamics = Yes"},
+                "Pump": {"TYPE": "FLAG", "DEFAULT": false},
+                "PumpProbeFrames": {"TYPE": "INTEGER", "CONDITION": "Pump = Yes"},
+                "Probe": {"TYPE": "FLAG", "DEFAULT": false},
+                "EulerFrequency": {"TYPE": "INTEGER", "DEFAULT": 0},
+                "WriteBondEnergy": {"TYPE": "FLAG", "DEFAULT": false},
+                "WriteBondPopulation": {"TYPE": "FLAG", "DEFAULT": false},
+                "WriteAtomicEnergies": {"TYPE": "FLAG", "DEFAULT": false},
+                "FillingsFromFile": {"TYPE": "FLAG", "DEFAULT": false},
+                "VerboseDynamics": {"TYPE": "FLAG", "DEFAULT": true}
+            },
+            "PRODUCES": ["energyvst.dat", "qsvst.dat", "mu.dat", "tdcoords.xyz", "molpopul1.dat"],
+            "DESCRIPTION": "Propagation temps réel de la matrice densité (et des noyaux, approximation d'Ehrenfest) sous champ externe.",
+            "PAGE": 99
+        },
+
+        "SOCKET": {
+            "KEYWORD": "Socket",
+            "CANONICAL": "EXTERNAL_DRIVER",
+            "TARGET": ["Driver"],
+            "PERIODIC": "BOTH",
+            "DESCRIPTION": "Délègue le pilotage de la géométrie à un programme externe via socket (protocole i-PI).",
+            "PAGE": 30
+        },
+
+        "TRANSPORT": {
+            "KEYWORD": "Transport",
+            "ALIASES": ["NEGF"],
+            "CANONICAL": "ELECTRON_TRANSPORT",
+            "TARGET": ["Hamiltonian", "DFTB", "Transport"],
+            "PERIODIC": "PERIODIC",
+            "ARGUMENTS": {
+                "Device": {"TYPE": "BLOCK", "PAGE": 125, "ARGUMENTS": {"AtomRange": {"TYPE": "LIST"}, "FirstLayerAtoms": {"TYPE": "LIST"}}},
+                "Contact": {"TYPE": "BLOCK", "REPEATABLE": true, "PAGE": 126, "ARGUMENTS": {"Id": {"TYPE": "STRING"}, "AtomRange": {"TYPE": "LIST"}, "Potential": {"TYPE": "REAL", "UNIT": "energy"}, "FermiLevel": {"TYPE": "REAL", "UNIT": "energy"}, "Temperature": {"TYPE": "REAL", "UNIT": "energy"}}},
+                "Task": {"TYPE": "CHOICE", "VALUES": ["ContactHamiltonian", "UploadContacts"], "PAGE": 127}
+            },
+            "COMPANION_BLOCKS": ["GreensFunction", "Poisson", "TunnelingAndDos"],
+            "DESCRIPTION": "Transport électronique par fonctions de Green hors équilibre (NEGF), avec solveur de Poisson pour les gates.",
+            "PAGE": 123
+        },
+
+        "MODES": {
+            "KEYWORD": null,
+            "BINARY": "modes",
+            "CANONICAL": {"FREQUENCIES": {"EQUIVALENCE": "APPROX", "NOTE": "Modes normaux et intensités IR/Raman sans thermochimie ; programme modes lancé après SecondDerivatives."}},
+            "INPUT_FILE": "modes_in.hsd",
+            "TARGET": "EXTERNAL_PROGRAM",
+            "REQUIRES": ["SECOND_DERIVATIVES"],
+            "ARGUMENTS": {
+                "Hessian": {"TYPE": "BLOCK", "ARGUMENTS": {"Matrix": {"TYPE": "TABLE", "INCLUDE": "hessian.out"}}, "PAGE": 145},
+                "BornCharges": {"TYPE": "BLOCK", "PAGE": 145, "DESCRIPTION": "Intensités infrarouges à partir de born.out."},
+                "BornDerivs": {"TYPE": "BLOCK", "PAGE": 145, "DESCRIPTION": "Intensités Raman à partir de bornderiv.out."},
+                "DisplayModes": {"TYPE": "BLOCK", "PAGE": 146, "ARGUMENTS": {"PlotModes": {"TYPE": "LIST"}, "Animate": {"TYPE": "FLAG"}}}
+            },
+            "DESCRIPTION": "Programme séparé : modes normaux de vibration, intensités IR et Raman à partir de la Hessienne DFTB+.",
+            "PAGE": 143
+        },
+
+        "PHONONS": {
+            "KEYWORD": null,
+            "BINARY": "phonons",
+            "CANONICAL": "PHONONS",
+            "TARGET": "EXTERNAL_PROGRAM",
+            "REQUIRES": ["SECOND_DERIVATIVES"],
+            "ARGUMENTS": {
+                "PhononDispersion": {"TYPE": "BLOCK", "PAGE": 153},
+                "Transport": {"TYPE": "BLOCK", "PAGE": 150, "DESCRIPTION": "Transport phononique."}
+            },
+            "DESCRIPTION": "Programme séparé : dispersion de phonons et transport phononique.",
+            "PAGE": 149
+        },
+
+        "WAVEPLOT": {
+            "KEYWORD": null,
+            "BINARY": "waveplot",
+            "CANONICAL": "ORBITAL_PLOT",
+            "INPUT_FILE": "waveplot_in.hsd",
+            "TARGET": "EXTERNAL_PROGRAM",
+            "REQUIRES": [{"PATH": ["Options", "WriteDetailedXML"], "VALUE": true}, {"PATH": ["Analysis", "WriteEigenvectors"], "VALUE": true}],
+            "DESCRIPTION": "Programme séparé : tracé des orbitales moléculaires et densités de charge sur grille (fichiers cube).",
+            "PAGE": 155
+        },
+
+        "SETUPGEOM": {
+            "KEYWORD": null,
+            "BINARY": "setupgeom",
+            "TARGET": "EXTERNAL_PROGRAM",
+            "DESCRIPTION": "Programme séparé : préparation/validation d'une géométrie pour un calcul de transport.",
+            "PAGE": 163
+        }
+    },
+
+    "METHODS": {
+        "TIGHT_BINDING": {
+            "KEYWORD": "DFTB",
+            "PATH": ["Hamiltonian"],
+            "CANONICAL": "DFTB",
+            "TYPE": "TREE",
+            "MANDATORY": true,
+            "VARIANTS": {
+                "DFTB1": {
+                    "ALIASES": ["DFTB", "NON-SCC", "NCC-DFTB"],
+                    "CANONICAL": "DFTB1",
+                    "ORDER": 1,
+                    "SETS": {"SCC": false},
+                    "DESCRIPTION": "DFTB non auto-cohérent (ordre 1). Pas de polarisation de spin possible."
+                },
+                "DFTB2": {
+                    "ALIASES": ["SCC-DFTB", "DFTB-2"],
+                    "CANONICAL": "DFTB2",
+                    "ORDER": 2,
+                    "SETS": {"SCC": true},
+                    "DESCRIPTION": "SCC-DFTB : correction de charge au second ordre, auto-cohérente."
+                },
+                "DFTB3": {
+                    "ALIASES": ["DFTB-3"],
+                    "CANONICAL": "DFTB3",
+                    "ORDER": 3,
+                    "SETS": {"SCC": true, "ThirdOrderFull": true},
+                    "REQUIRES": ["HubbardDerivs", "HCorrection"],
+                    "TYPICAL_PARAMETERS": "3ob-3-1, avec HCorrection = Damping { Exponent = 4.00 }",
+                    "DESCRIPTION": "DFTB3 : troisième ordre complet du développement de la densité, avec dérivées de Hubbard.",
+                    "PAGE": 70
+                },
+                "MDFTB": {
+                    "ALIASES": ["multipolar-DFTB"],
+                    "CANONICAL": "MDFTB",
+                    "SETS": {"SCC": true},
+                    "PATH": ["Hamiltonian", "DFTB", "Mdftb"],
+                    "DESCRIPTION": "Extension multipolaire de DFTB (dipôles/quadrupôles sur site).",
+                    "PAGE": 71
+                },
+                "LC-DFTB": {
+                    "ALIASES": ["RANGE-SEPARATED", "LC"],
+                    "CANONICAL": "LC-DFTB",
+                    "PATH": ["Hamiltonian", "DFTB", "Hybrid", "LC"],
+                    "SETS": {"SCC": true},
+                    "DESCRIPTION": "Hybride séparé en portée (alpha = 0, beta = 1). Les paramètres alpha/beta/omega proviennent des fichiers SK.",
+                    "PAGE": 82
+                },
+                "GLOBAL-HYBRID-DFTB": {
+                    "CANONICAL": "GLOBAL-HYBRID-DFTB",
+                    "PATH": ["Hamiltonian", "DFTB", "Hybrid", "Global"],
+                    "SETS": {"SCC": true},
+                    "DESCRIPTION": "Hybride global : fraction statique d'échange de Fock (0 < alpha <= 1, beta = 0)."
+                },
+                "CAM-DFTB": {
+                    "CANONICAL": "CAM-DFTB",
+                    "PATH": ["Hamiltonian", "DFTB", "Hybrid", "CAM"],
+                    "SETS": {"SCC": true},
+                    "DESCRIPTION": "Partitionnement général de l'interaction électron-électron (Coulomb-attenuating method)."
+                }
+            },
+            "ARGUMENTS": {
+                "SCC": {"TYPE": "FLAG", "DEFAULT": false, "DESCRIPTION": "Active le calcul auto-cohérent en charge."},
+                "SCCTolerance": {"TYPE": "REAL", "DEFAULT": 1e-5, "CONDITION": "SCC = Yes", "DESCRIPTION": "Différence de charge maximale entre deux cycles SCC."},
+                "MaxSCCIterations": {"TYPE": "INTEGER", "DEFAULT": 100, "CONDITION": "SCC = Yes"},
+                "ConvergentSccOnly": {"TYPE": "FLAG", "DEFAULT": true, "CONDITION": "SCC = Yes"},
+                "ShellResolvedSCC": {"TYPE": "FLAG", "DEFAULT": false, "CONDITION": "SCC = Yes", "DESCRIPTION": "Utilise un U de Hubbard distinct par couche angulaire. Vérifier la compatibilité du jeu SK."},
+                "ThirdOrder": {"TYPE": "FLAG", "DEFAULT": false, "CONDITION": "SCC = Yes"},
+                "ThirdOrderFull": {"TYPE": "FLAG", "DEFAULT": false, "CONDITION": "SCC = Yes"},
+                "HubbardDerivs": {"TYPE": "BLOCK", "CONDITION": "ThirdOrder(Full) = Yes", "DESCRIPTION": "Dérivées de Hubbard par espèce, ex : { O = -0.1575 H = -0.1857 }"},
+                "Charge": {"TYPE": "REAL", "DEFAULT": 0.0, "DESCRIPTION": "Charge totale (négatif = excès d'électrons)."},
+                "MaxAngularMomentum": {"TYPE": "BLOCK", "MANDATORY": true, "DESCRIPTION": "Moment angulaire max par espèce : s, p, d, f. Bloc SelectedShells{} pour les bases étendues."},
+                "EwaldParameter": {"TYPE": "REAL", "DEFAULT": 0.0, "CONDITION": "Periodic = Yes, SCC = Yes", "DESCRIPTION": "0 ou négatif = détermination automatique (recommandé)."},
+                "EwaldTolerance": {"TYPE": "REAL", "DEFAULT": 1e-9, "CONDITION": "Periodic = Yes, SCC = Yes"},
+                "ReadInitialCharges": {"TYPE": "FLAG", "DEFAULT": false, "CONDITION": "SCC = Yes"},
+                "InitialCharges": {"TYPE": "BLOCK", "CONDITION": "SCC = Yes", "DESCRIPTION": "AllAtomCharges{} ou AtomCharge{ Atoms= ChargePerAtom= }."},
+                "OldSKInterpolation": {"TYPE": "FLAG", "DEFAULT": false, "DEPRECATED": true},
+                "PolynomialRepulsive": {"TYPE": "BLOCK", "DEFAULT": null, "DESCRIPTION": "Répulsif polynomial au lieu de spline, par paire d'espèces (ou SetForAll{})."},
+                "Chimes": {"TYPE": "BLOCK", "REQUIRES_BUILD": "ChIMES", "ARGUMENTS": {"ParameterFile": {"TYPE": "STRING"}}, "DESCRIPTION": "Correction de champ de force ChIMES au-dessus des potentiels répulsifs SK."},
+                "CustomisedHubbards": {"TYPE": "BLOCK", "EXPERT": true},
+                "CustomisedOccupations": {"TYPE": "BLOCK", "EXPERT": true},
+                "TruncateSKRange": {"TYPE": "BLOCK", "EXPERT": true, "ARGUMENTS": {"SKMaxDistance": {"TYPE": "REAL", "UNIT": "length"}, "HardCutOff": {"TYPE": "FLAG", "DEFAULT": false}}},
+                "ForceEvaluation": {"TYPE": "CHOICE", "DEFAULT": "Legacy", "VALUES": ["Traditional", "Dynamics", "DynamicsT0", "DynamicsTFinite"], "PAGE": 86},
+                "Differentiation": {"TYPE": "CHOICE", "DEFAULT": "FiniteDiff", "VALUES": ["FiniteDiff", "Richardson"], "PAGE": 86},
+                "HelicalSymmetryTol": {"TYPE": "REAL", "DEFAULT": 1e-6, "CONDITION": "Helical = Yes"}
+            },
+            "DESCRIPTION": "Hamiltonien DFTB (Hamiltonian = DFTB{}).",
+            "PAGE": 31
+        },
+
+        "XTB": {
+            "KEYWORD": "xTB",
+            "CANONICAL": "XTB",
+            "PATH": ["Hamiltonian"],
+            "TYPE": "TREE",
+            "REQUIRES_BUILD": "tblite",
+            "VARIANTS": {
+                "GFN1-xTB": {"KEYWORD": "GFN1-xTB", "CANONICAL": "GFN1-xTB", "SETS": {"Method": "GFN1-xTB"}},
+                "GFN2-xTB": {"KEYWORD": "GFN2-xTB", "CANONICAL": "GFN2-xTB", "SETS": {"Method": "GFN2-xTB"}},
+                "IPEA1-xTB": {"KEYWORD": "IPEA1-xTB", "CANONICAL": "IPEA1-xTB", "SETS": {"Method": "IPEA1-xTB"}}
+            },
+            "ARGUMENTS": {
+                "Method": {"TYPE": "CHOICE", "VALUES": ["GFN1-xTB", "GFN2-xTB", "IPEA1-xTB"], "EXCLUDE_IF": [{"PATH": ["Hamiltonian", "xTB", "ParameterFile"], "VALUE": "SET"}]},
+                "ParameterFile": {"TYPE": "STRING", "EXCLUDE_IF": [{"PATH": ["Hamiltonian", "xTB", "Method"], "VALUE": "SET"}], "DESCRIPTION": "Paramétrisation au format tblite."},
+                "SCCTolerance": {"TYPE": "REAL", "DEFAULT": 1e-5},
+                "MaxSCCIterations": {"TYPE": "INTEGER", "DEFAULT": 100},
+                "Charge": {"TYPE": "REAL", "DEFAULT": 0.0},
+                "MaxAngularMomentum": {"TYPE": "BLOCK"},
+                "SpinPolarisation": {"TYPE": "CHOICE", "DEFAULT": null},
+                "SpinConstants": {"TYPE": "BLOCK", "CONDITION": "SpinPolarisation != {}"},
+                "Solver": {"TYPE": "CHOICE", "DEFAULT": "RelativelyRobust"},
+                "Filling": {"TYPE": "CHOICE", "DEFAULT": "Fermi"},
+                "KPointsAndWeights": {"TYPE": "TABLE", "CONDITION": "Periodic = Yes"},
+                "ElectronicConstraints": {"TYPE": "BLOCK"}
+            },
+            "DESCRIPTION": "Hamiltonien tight-binding étendu, délégué à la bibliothèque tblite.",
+            "PAGE": 38
+        },
+
+        "EXTERNAL_ASI": {
+            "KEYWORD": "ASI",
+            "PATH": ["Hamiltonian", "ASI"],
+            "TYPE": "BLOCK",
+            "REQUIRES_BUILD": "API",
+            "LIMITATIONS": ["Pas de forces si le modèle est modifié", "Pas de modèles auto-cohérents"],
+            "DESCRIPTION": "Interface Atomic Simulation Interface : un code externe lit ou remplace H, S ou la matrice densité.",
+            "PAGE": 39
+        },
+
+        "EXCITED_STATE": {
+            "KEYWORD": null,
+            "PATH": ["ExcitedState"],
+            "VARIANTS": {
+                "TD-DFTB-CASIDA": {
+                    "KEYWORD": "Casida",
+                    "ALIASES": ["TD-DFTB", "LR-TDDFTB"],
+                    "CANONICAL": "LR-TDDFT",
+                    "CONDITION": "SCC = Yes",
+                    "REQUIRES_BUILD": "ARPACK",
+                    "PERIODIC": "MOLECULE",
+                    "ARGUMENTS": {
+                        "NrOfExcitations": {"TYPE": "INTEGER", "MANDATORY": true},
+                        "StateOfInterest": {"TYPE": "INTEGER", "DEFAULT": 0, "DESCRIPTION": "0 = spectre au point (single point) ; n > 0 = état ciblé (forces disponibles) ; < 0 = état de plus grand moment de transition."},
+                        "Symmetry": {"TYPE": "CHOICE", "VALUES": ["singlet", "triplet", "both"], "CONDITION": "SpinPolarisation = {}"},
+                        "Diagonaliser": {"TYPE": "CHOICE", "VALUES": ["Arpack", "Stratmann"], "PAGE": 97},
+                        "EnergyWindow": {"TYPE": "REAL", "UNIT": "energy", "DEFAULT": "HUGE"},
+                        "OscillatorWindow": {"TYPE": "REAL", "DEFAULT": -1},
+                        "WriteTransitions": {"TYPE": "FLAG", "DEFAULT": false},
+                        "WriteTransitionCharges": {"TYPE": "FLAG", "DEFAULT": false},
+                        "WriteSPTransitions": {"TYPE": "FLAG", "DEFAULT": false},
+                        "WriteMulliken": {"TYPE": "FLAG", "DEFAULT": false},
+                        "WriteCoefficients": {"TYPE": "FLAG", "DEFAULT": false},
+                        "WriteEigenvectors": {"TYPE": "FLAG", "DEFAULT": false},
+                        "WriteDensityMatrix": {"TYPE": "FLAG", "DEFAULT": false},
+                        "WriteXplusY": {"TYPE": "FLAG", "DEFAULT": false},
+                        "WriteTransitionDipole": {"TYPE": "FLAG", "DEFAULT": false},
+                        "ExcitedStateForces": {"TYPE": "FLAG", "DEFAULT": true, "CONDITION": "Printforces = Yes"},
+                        "CacheCharges": {"TYPE": "FLAG", "DEFAULT": true},
+                        "StateCouplings": {"TYPE": "LIST", "LENGTH": 2, "DESCRIPTION": "Couplages non adiabatiques entre deux états."},
+                        "OptimiserCI": {"TYPE": "BLOCK", "CONDITION": "StateCouplings non nul", "PAGE": 98}
+                    },
+                    "PRODUCES": ["EXC.DAT", "SPX.DAT", "TDP.DAT", "XplusY.DAT", "NACV.DAT"],
+                    "DESCRIPTION": "États excités par théorie de la réponse linéaire (Casida). SCC-DFTB moléculaire uniquement ; compatible avec les fonctionnelles séparées en portée.",
+                    "PAGE": 95
+                },
+                "PP-RPA": {
+                    "KEYWORD": "PP-RPA",
+                    "CANONICAL": "PP-RPA",
+                    "CONDITION": "SCC = Yes",
+                    "DESCRIPTION": "Approximation des phases aléatoires particule-particule pour les états excités.",
+                    "PAGE": 99
+                },
+                "TI-DFTB": {
+                    "KEYWORD": "NonAufbau",
+                    "CANONICAL": "DELTA-SCF",
+                    "PATH": ["Hamiltonian", "DFTB", "NonAufbau"],
+                    "DESCRIPTION": "États excités indépendants du temps (Delta-DFTB) : occupation non-Aufbau des niveaux.",
+                    "PAGE": 52
+                },
+                "REKS-SSR22": {
+                    "KEYWORD": "SSR22",
+                    "CANONICAL": "REKS",
+                    "PATH": ["Reks"],
+                    "CONDITION": "SCC = Yes, SpinPolarisation = {}, SpinConstants != {}",
+                    "SUB_VARIANTS": ["single-state REKS", "SA-REKS", "SI-SA-REKS"],
+                    "DESCRIPTION": "DFT d'ensemble REKS(2,2) : état fondamental multiréférence et états excités. Incompatible avec TD-DFTB et la polarisation de spin ; OpenMP seulement.",
+                    "PAGE": 105
+                }
+            }
+        }
+    },
+
+    "PARAMETERS": {
+        "MIXER": {
+            "TYPE": "CHOICE",
+            "PATH": ["Hamiltonian", "DFTB", "Mixer"],
+            "DEFAULT": "Broyden",
+            "CONDITION": "SCC = Yes",
+            "VALUES": ["Broyden", "Anderson", "DIIS", "Simple"],
+            "ARGUMENTS": {
+                "Broyden": {"TYPE": "BLOCK", "ARGUMENTS": {
+                    "MixingParameter": {"TYPE": "REAL", "DEFAULT": 0.2},
+                    "InverseJacobiWeight": {"TYPE": "REAL", "DEFAULT": 0.01},
+                    "MinimalWeight": {"TYPE": "REAL", "DEFAULT": 1.0},
+                    "MaximalWeight": {"TYPE": "REAL", "DEFAULT": 1e5},
+                    "WeightFactor": {"TYPE": "REAL", "DEFAULT": 1e-2}
+                }},
+                "Anderson": {"TYPE": "BLOCK"},
+                "DIIS": {"TYPE": "BLOCK"},
+                "Simple": {"TYPE": "BLOCK"}
+            },
+            "DESCRIPTION": "Mélangeur de charges du cycle SCC.",
+            "PAGE": 41
+        },
+
+        "SPIN_POLARISATION": {
+            "TYPE": "CHOICE",
+            "PATH": ["Hamiltonian", "DFTB", "SpinPolarisation"],
+            "ALIASES": ["SpinPolarization"],
+            "DEFAULT": null,
+            "CONDITION": "SCC = Yes",
+            "VALUES": ["None", "Colinear", "NonColinear"],
+            "ARGUMENTS": {
+                "Colinear": {"TYPE": "BLOCK", "CANONICAL": "UNRESTRICTED", "ARGUMENTS": {
+                    "UnpairedElectrons": {"TYPE": "REAL", "DEFAULT": 0},
+                    "RelaxTotalSpin": {"TYPE": "FLAG", "DEFAULT": false, "DESCRIPTION": "Niveau de Fermi commun aux deux canaux : la polarisation totale peut évoluer."},
+                    "InitialSpins": {"TYPE": "BLOCK", "DEFAULT": null}
+                }},
+                "NonColinear": {"TYPE": "BLOCK", "CANONICAL": "GENERALISED", "ARGUMENTS": {"InitialSpins": {"TYPE": "BLOCK"}}}
+            },
+            "COMPANION": {
+                "SpinConstants": {"TYPE": "BLOCK", "PATH": ["Hamiltonian", "DFTB", "SpinConstants"], "MANDATORY_IF": [{"PATH": ["Hamiltonian", "DFTB", "SpinPolarisation"], "VALUE": "SET"}], "UNIT": "Hartree", "PAGE": 46},
+                "ShellResolvedSpin": {"TYPE": "FLAG", "DEFAULT": false, "CONDITION": "ShellResolvedSCC = No"}
+            },
+            "DESCRIPTION": "Polarisation de spin (colinéaire z, ou non colinéaire).",
+            "PAGE": 43
+        },
+
+        "SPIN_ORBIT": {
+            "TYPE": "BLOCK",
+            "PATH": ["Hamiltonian", "DFTB", "SpinOrbit"],
+            "CANONICAL": "SPIN_ORBIT_COUPLING",
+            "DEFAULT": null,
+            "CONDITION": "SpinPolarisation != Colinear",
+            "DESCRIPTION": "Couplage Russel-Saunders (spin-orbite), constantes par espèce.",
+            "PAGE": 47
+        },
+
+        "SOLVER": {
+            "TYPE": "CHOICE",
+            "PATH": ["Hamiltonian", "DFTB", "Solver"],
+            "DEFAULT": "RelativelyRobust",
+            "VALUES": ["QR", "DivideAndConquer", "RelativelyRobust", "MAGMA", "ELPA", "OMM", "PEXSI", "NTPoly", "TransportOnly", "GreensFunction"],
+            "ARGUMENTS": {
+                "QR": {"TYPE": "BLOCK", "LIBRARY": "LAPACK"},
+                "DivideAndConquer": {"TYPE": "BLOCK", "LIBRARY": "LAPACK", "NOTE": "Environ deux fois plus de mémoire que les autres."},
+                "RelativelyRobust": {"TYPE": "BLOCK", "LIBRARY": "LAPACK"},
+                "MAGMA": {"TYPE": "BLOCK", "LIBRARY": "MAGMA", "PARALLEL": "SERIAL", "ARGUMENTS": {"DensityMatrixGPU": {"TYPE": "FLAG", "DEFAULT": true}}},
+                "ELPA": {"TYPE": "BLOCK", "LIBRARY": "ELSI", "PARALLEL": "MPI", "ARGUMENTS": {
+                    "Autotune": {"TYPE": "FLAG", "DEFAULT": false},
+                    "Gpu": {"TYPE": "FLAG", "DEFAULT": false},
+                    "Mode": {"TYPE": "INTEGER", "DEFAULT": 2, "VALUES": [1, 2]},
+                    "Sparse": {"TYPE": "FLAG", "DEFAULT": false}
+                }},
+                "OMM": {"TYPE": "BLOCK", "LIBRARY": "ELSI", "PARALLEL": "MPI"},
+                "PEXSI": {"TYPE": "BLOCK", "LIBRARY": "ELSI", "PARALLEL": "MPI"},
+                "NTPoly": {"TYPE": "BLOCK", "LIBRARY": "ELSI", "PARALLEL": "MPI", "SCALING": "LINEAR"}
+            },
+            "NOTE": "Les solveurs ELSI ne sont pas testés en multithread : DFTB+ s'arrête si OMP_NUM_THREADS > 1.",
+            "DESCRIPTION": "Solveur aux valeurs propres / de matrice densité.",
+            "PAGE": 47
+        },
+
+        "FILLING": {
+            "TYPE": "CHOICE",
+            "PATH": ["Hamiltonian", "DFTB", "Filling"],
+            "DEFAULT": "Fermi",
+            "VALUES": ["Fermi", "MethfesselPaxton", "Gaussian"],
+            "COMMON_ARGUMENTS": {
+                "Temperature": {"TYPE": "REAL", "DEFAULT": 0.0, "UNIT": "energy", "CONDITION": "AdaptFillingTemp = No"},
+                "IndependentKFilling": {"TYPE": "FLAG", "DEFAULT": false, "CONDITION": "Periodic = Yes"},
+                "FixedFermiLevel": {"TYPE": "LIST", "SUBTYPE": "REAL", "UNIT": "energy", "DESCRIPTION": "Fixe le potentiel chimique (1 valeur, ou 2 pour le spin colinéaire). Charge et spin totaux ne sont alors plus conservés."}
+            },
+            "ARGUMENTS": {
+                "Fermi": {"TYPE": "BLOCK", "CANONICAL": "FERMI_DIRAC"},
+                "MethfesselPaxton": {"TYPE": "BLOCK", "CANONICAL": "METHFESSEL_PAXTON", "ARGUMENTS": {"Order": {"TYPE": "INTEGER", "DEFAULT": 1, "RANGE": [1, 10]}}},
+                "Gaussian": {"TYPE": "BLOCK", "CANONICAL": "GAUSSIAN_SMEARING", "NOTE": "Équivalent à MethfesselPaxton d'ordre 0."}
+            },
+            "DESCRIPTION": "Occupation des niveaux monoélectroniques. À température finie, utiliser l'énergie libre de Mermin (E - TS).",
+            "PAGE": 51
+        },
+
+        "SLATER_KOSTER_FILES": {
+            "TYPE": "TREE",
+            "PATH": ["Hamiltonian", "DFTB", "SlaterKosterFiles"],
+            "MANDATORY": true,
+            "VARIANTS": {
+                "EXPLICIT": {"DESCRIPTION": "Une entrée par paire ordonnée d'espèces : Ga-As = \"./Ga-As.skf\". Prefix accepté."},
+                "TYPE2FILENAMES": {"KEYWORD": "Type2FileNames", "ARGUMENTS": {
+                    "Prefix": {"TYPE": "STRING", "DEFAULT": ""},
+                    "Suffix": {"TYPE": "STRING", "DEFAULT": ".skf"},
+                    "Separator": {"TYPE": "STRING", "DEFAULT": "-"},
+                    "LowerCaseTypeName": {"TYPE": "FLAG", "DEFAULT": false}
+                }}
+            },
+            "SEARCH_PATH": "DFTBPLUS_PARAM_DIR",
+            "COMMON_SETS": ["mio", "3ob", "pbc", "matsci", "trans3d", "znorg", "halorg", "ob2"],
+            "DESCRIPTION": "Fichiers de paramètres Slater-Koster pour chaque paire d'espèces.",
+            "PAGE": 53
+        },
+
+        "KPOINTS": {
+            "TYPE": "CHOICE",
+            "PATH": ["Hamiltonian", "DFTB", "KPointsAndWeights"],
+            "CONDITION": "Periodic = Yes",
+            "MODIFIERS": ["relative", "absolute"],
+            "VARIANTS": {
+                "EXPLICIT": {"TYPE": "TABLE", "COLUMNS": 4, "CANONICAL": "EXPLICIT_KPOINTS", "DESCRIPTION": "kx ky kz poids par ligne (2 coordonnées + poids en symétrie hélicoïdale)."},
+                "SupercellFolding": {"TYPE": "TABLE", "SHAPE": [4, 3], "CANONICAL": {"MONKHORST_PACK": {"NOTE": "Matrice de repliement diagonale ; une matrice quelconque va au-delà de Monkhorst-Pack."}}, "DESCRIPTION": "9 entiers (matrice de repliement) + 3 réels (décalage). Le Monkhorst-Pack l1 x l2 x l3 correspond à la matrice diagonale.", "NO_MODIFIER": true},
+                "KLines": {"TYPE": "TABLE", "CANONICAL": "BAND_PATH", "DESCRIPTION": "Chemin de bande : nombre de points + coordonnées du point d'arrivée par ligne. Force MaxSCCIterations à 1 par défaut."},
+                "HelicalUniform": {"TYPE": "LIST", "CONDITION": "Helical = Yes"},
+                "HelicalSampled": {"TYPE": "LIST", "CONDITION": "Helical = Yes"}
+            },
+            "DESCRIPTION": "Échantillonnage de la zone de Brillouin.",
+            "PAGE": 55
+        },
+
+        "DISPERSION": {
+            "TYPE": "CHOICE",
+            "PATH": ["Hamiltonian", "DFTB", "Dispersion"],
+            "DEFAULT": null,
+            "VALUES": ["LennardJones", "SlaterKirkwood", "DftD3", "SimpleDftD3", "DftD4", "Ts", "Mbd"],
+            "ARGUMENTS": {
+                "LennardJones": {"TYPE": "BLOCK", "CANONICAL": "LENNARD_JONES", "ARGUMENTS": {
+                    "Parameters": {"TYPE": "CHOICE", "VALUES": ["UFFParameters", "EXPLICIT"], "DESCRIPTION": "UFFParameters{} ou paramètres Distance/Energy par espèce."}
+                }},
+                "SlaterKirkwood": {"TYPE": "BLOCK", "CANONICAL": "SLATER_KIRKWOOD", "DESCRIPTION": "Modèle atomique polarisable de Slater-Kirkwood (annexe F)."},
+                "DftD3": {"TYPE": "BLOCK", "LIBRARY": "s-dftd3", "CANONICAL": {"D3(BJ)": {"SETS": {"Damping": "BeckeJohnson"}}, "D3(0)": {"SETS": {"Damping": "ZeroDamping"}}, "D3M(BJ)": {"SETS": {"Damping": "ModifiedBeckeJohnson"}}}, "ARGUMENTS": {
+                    "Damping": {"TYPE": "CHOICE", "VALUES": ["BeckeJohnson", "ZeroDamping", "ModifiedBeckeJohnson"], "ARGUMENTS": {"a1": {"TYPE": "REAL"}, "a2": {"TYPE": "REAL"}}},
+                    "s6": {"TYPE": "REAL", "DEFAULT": 1.0},
+                    "s8": {"TYPE": "REAL"},
+                    "s9": {"TYPE": "REAL", "DEFAULT": 0.0, "DESCRIPTION": "Terme à trois corps (ATM)."},
+                    "HHRepulsion": {"TYPE": "FLAG", "DEFAULT": false}
+                }},
+                "SimpleDftD3": {"TYPE": "BLOCK", "CANONICAL": {"D3(BJ)": {"NOTE": "Implémentation interne de DFTB+, sans la bibliothèque s-dftd3."}}, "ARGUMENTS": {"a1": {"TYPE": "REAL"}, "a2": {"TYPE": "REAL"}, "s6": {"TYPE": "REAL"}, "s8": {"TYPE": "REAL"}}, "DESCRIPTION": "Implémentation interne D3(BJ), disponible sans la bibliothèque s-dftd3."},
+                "DftD4": {"TYPE": "BLOCK", "CANONICAL": "D4", "ARGUMENTS": {"s6": {"TYPE": "REAL"}, "s8": {"TYPE": "REAL"}, "s9": {"TYPE": "REAL"}, "a1": {"TYPE": "REAL"}, "a2": {"TYPE": "REAL"}, "ChargeScaling": {"TYPE": "FLAG"}}},
+                "Ts": {"TYPE": "BLOCK", "CANONICAL": "TS", "DESCRIPTION": "Tkatchenko-Scheffler adapté à DFTB."},
+                "Mbd": {"TYPE": "BLOCK", "CANONICAL": "MBD", "DESCRIPTION": "MBD@rsSCS (dispersion many-body)."}
+            },
+            "DESCRIPTION": "Correction empirique de dispersion (van der Waals), absente de DFTB par construction.",
+            "PAGE": 60
+        },
+
+        "SOLVATION": {
+            "TYPE": "CHOICE",
+            "PATH": ["Hamiltonian", "DFTB", "Solvation"],
+            "DEFAULT": null,
+            "VALUES": ["GeneralisedBorn", "Cosmo", "SASA"],
+            "ARGUMENTS": {
+                "GeneralisedBorn": {"TYPE": "BLOCK", "ALIASES": ["GeneralizedBorn"], "CANONICAL": "GB", "ARGUMENTS": {
+                    "ParamFile": {"TYPE": "STRING", "DESCRIPTION": "Fichier de paramètres GBSA (solvant)."},
+                    "Solvent": {"TYPE": "CHOICE", "DESCRIPTION": "Solvant prédéfini (annexe I)."},
+                    "Temperature": {"TYPE": "REAL", "UNIT": "energy"},
+                    "FreeEnergyShift": {"TYPE": "REAL", "UNIT": "energy"},
+                    "BornScale": {"TYPE": "REAL"},
+                    "BornOffset": {"TYPE": "REAL", "UNIT": "length"},
+                    "Descreening": {"TYPE": "BLOCK"},
+                    "SASA": {"TYPE": "BLOCK", "DESCRIPTION": "Terme non polaire de surface accessible au solvant."},
+                    "HBondCorr": {"TYPE": "FLAG", "DESCRIPTION": "Correction de liaison hydrogène."}
+                }},
+                "Cosmo": {"TYPE": "BLOCK", "CANONICAL": "COSMO", "ARGUMENTS": {
+                    "Solvent": {"TYPE": "CHOICE"},
+                    "Epsilon": {"TYPE": "REAL"},
+                    "RadiiScaling": {"TYPE": "BLOCK"},
+                    "AngularGrid": {"TYPE": "INTEGER"},
+                    "Radii": {"TYPE": "CHOICE", "VALUES": ["vanDerWaalsRadiiD3"]}
+                }, "DESCRIPTION": "COSMO : modèle de continuum de type écran conducteur. Permet l'écriture de dftbp.cosmo."},
+                "SASA": {"TYPE": "BLOCK", "CANONICAL": "SASA", "DESCRIPTION": "Modèle de surface non polaire seul."}
+            },
+            "DESCRIPTION": "Modèle de solvatation implicite.",
+            "PAGE": 72
+        },
+
+        "HCORRECTION": {
+            "TYPE": "CHOICE",
+            "PATH": ["Hamiltonian", "DFTB", "HCorrection"],
+            "DEFAULT": "None",
+            "CONDITION": "SCC = Yes",
+            "VALUES": ["None", "Damping", "H5"],
+            "ARGUMENTS": {
+                "Damping": {"TYPE": "BLOCK", "ARGUMENTS": {"Exponent": {"TYPE": "REAL", "DESCRIPTION": "Typiquement 4.00 avec 3ob, 4.95 avec mio."}}},
+                "H5": {"TYPE": "BLOCK", "ARGUMENTS": {"RScaling": {"TYPE": "REAL"}, "WScaling": {"TYPE": "REAL"}, "H5Scaling": {"TYPE": "BLOCK"}}}
+            },
+            "DESCRIPTION": "Correction des liaisons hydrogène (amortissement gamma, ou correction H5).",
+            "PAGE": 79
+        },
+
+        "HALOGEN_CORRECTION": {
+            "TYPE": "FLAG",
+            "PATH": ["Hamiltonian", "DFTB", "HalogenXCorr"],
+            "DEFAULT": false,
+            "CONDITION": "ThirdOrderFull = Yes et DftD3",
+            "DESCRIPTION": "Correction des liaisons halogènes.",
+            "PAGE": 79
+        },
+
+        "ONSITE_CORRECTION": {
+            "TYPE": "BLOCK",
+            "PATH": ["Hamiltonian", "DFTB", "OnSiteCorrection"],
+            "CONDITION": "SCC = Yes",
+            "DESCRIPTION": "Éléments de matrice sur site (Domínguez et al.), améliore notamment les états excités.",
+            "PAGE": 85
+        },
+
+        "ORBITAL_POTENTIAL": {
+            "TYPE": "BLOCK",
+            "PATH": ["Hamiltonian", "DFTB", "OrbitalPotential"],
+            "CANONICAL": "HUBBARD_U",
+            "CONDITION": "SpinPolarisation != {}",
+            "VARIANTS": {"FLL": {"KEYWORD": "FLL", "CANONICAL": "FLL"}, "pSIC": {"KEYWORD": "pSIC"}},
+            "DESCRIPTION": "Contributions dépendantes de l'orbitale (DFT+U / LDA+U type FLL ou pSIC).",
+            "PAGE": 57
+        },
+
+        "ELECTRIC_FIELD": {
+            "TYPE": "BLOCK",
+            "PATH": ["Hamiltonian", "DFTB", "ElectricField"],
+            "ARGUMENTS": {
+                "External": {"TYPE": "BLOCK", "CANONICAL": "ELECTRIC_FIELD", "ARGUMENTS": {
+                    "Direction": {"TYPE": "LIST", "LENGTH": 3},
+                    "Strength": {"TYPE": "REAL", "UNIT": "electric_field"},
+                    "Frequency": {"TYPE": "REAL", "UNIT": "frequency"},
+                    "Phase": {"TYPE": "REAL"}
+                }},
+                "PointCharges": {"TYPE": "BLOCK", "CANONICAL": "POINT_CHARGES", "ARGUMENTS": {
+                    "CoordsAndCharges": {"TYPE": "TABLE", "UNIT": "length"},
+                    "GaussianBlurWidth": {"TYPE": "REAL", "UNIT": "length"}
+                }}
+            },
+            "DESCRIPTION": "Champ électrique externe (uniforme ou distribution de charges ponctuelles, pour de l'électrostatique QM/MM).",
+            "PAGE": 58
+        },
+
+        "ATOM_SITE_POTENTIAL": {
+            "TYPE": "BLOCK",
+            "PATH": ["Hamiltonian", "DFTB", "AtomSitePotential"],
+            "DESCRIPTION": "Potentiel externe appliqué sur des sites atomiques donnés.",
+            "PAGE": 60
+        },
+
+        "ELECTRONIC_CONSTRAINTS": {
+            "TYPE": "BLOCK",
+            "PATH": ["Hamiltonian", "DFTB", "ElectronicConstraints"],
+            "ARGUMENTS": {
+                "Constraints": {"TYPE": "BLOCK", "ARGUMENTS": {"MullikenPopulation": {"TYPE": "BLOCK", "REPEATABLE": true, "ARGUMENTS": {"Atoms": {"TYPE": "LIST"}, "Populations": {"TYPE": "REAL"}}}}},
+                "Optimiser": {"TYPE": "CHOICE", "DEFAULT": "FIRE"},
+                "ConstrTolerance": {"TYPE": "REAL", "DEFAULT": 1e-8},
+                "MaxConstrIterations": {"TYPE": "INTEGER", "DEFAULT": 100},
+                "ConvergentConstrOnly": {"TYPE": "FLAG", "DEFAULT": true}
+            },
+            "DESCRIPTION": "Contraintes sur l'état fondamental électronique (populations de Mulliken imposées via un potentiel externe).",
+            "PAGE": 39
+        },
+
+        "OPTIONS": {
+            "TYPE": "BLOCK",
+            "PATH": ["Options"],
+            "ARGUMENTS": {
+                "WriteAutotestTag": {"TYPE": "FLAG", "DEFAULT": false},
+                "WriteDetailedXML": {"TYPE": "FLAG", "DEFAULT": false, "DESCRIPTION": "detailed.xml, requis par waveplot."},
+                "WriteResultsTag": {"TYPE": "FLAG", "DEFAULT": false, "DESCRIPTION": "results.tag, format machine — à activer pour le parsing par AMAC."},
+                "WriteDetailedOut": {"TYPE": "FLAG", "DEFAULT": true},
+                "RestartFrequency": {"TYPE": "INTEGER", "DEFAULT": 20, "CONDITION": "Driver = {}, SCC = Yes"},
+                "RandomSeed": {"TYPE": "INTEGER", "DEFAULT": 0},
+                "MinimiseMemoryUsage": {"TYPE": "FLAG", "DEFAULT": false},
+                "TimingVerbosity": {"TYPE": "INTEGER", "DEFAULT": 0},
+                "ShowFoldedCoords": {"TYPE": "FLAG", "DEFAULT": false, "CONDITION": "Periodic = Yes"},
+                "WriteHS": {"TYPE": "FLAG", "DEFAULT": false},
+                "WriteRealHS": {"TYPE": "FLAG", "DEFAULT": false},
+                "ReadChargesAsText": {"TYPE": "FLAG", "DEFAULT": false},
+                "WriteCharges": {"TYPE": "FLAG", "DEFAULT": true},
+                "WriteChargesAsText": {"TYPE": "FLAG", "DEFAULT": false},
+                "SkipChargeTest": {"TYPE": "FLAG", "DEFAULT": false},
+                "BinaryAccessTypes": {"TYPE": "STRING", "DEFAULT": "stream"},
+                "WriteAllAtomGeometry": {"TYPE": "FLAG", "DEFAULT": false},
+                "MDOutput": {"TYPE": "BLOCK", "CONDITION": "MD = Yes", "PAGE": 89}
+            },
+            "DESCRIPTION": "Options globales d'exécution et de sortie.",
+            "PAGE": 87
+        },
+
+        "ANALYSIS": {
+            "TYPE": "BLOCK",
+            "PATH": ["Analysis"],
+            "ARGUMENTS": {
+                "AtomResolvedEnergies": {"TYPE": "FLAG", "DEFAULT": false},
+                "MullikenAnalysis": {"TYPE": "FLAG", "DEFAULT": true},
+                "WriteNetCharges": {"TYPE": "FLAG", "DEFAULT": false, "CONDITION": "MullikenAnalysis = Yes"},
+                "CM5": {"TYPE": "BLOCK", "CONDITION": "MullikenAnalysis = Yes", "PAGE": 75, "DESCRIPTION": "Charges partielles corrigées CM5."},
+                "WriteCosmoFile": {"TYPE": "FLAG", "DEFAULT": false, "CONDITION": "Solvation = Cosmo"},
+                "ProjectStates": {"TYPE": "BLOCK", "PAGE": 91, "ARGUMENTS": {"Region": {"TYPE": "BLOCK", "REPEATABLE": true, "ARGUMENTS": {
+                    "Atoms": {"TYPE": "LIST", "MANDATORY": true},
+                    "ShellResolved": {"TYPE": "FLAG", "DEFAULT": false},
+                    "OrbitalResolved": {"TYPE": "FLAG", "DEFAULT": false},
+                    "Label": {"TYPE": "STRING", "DEFAULT": "regioni"}
+                }}}, "DESCRIPTION": "PDOS : projection de Mulliken des états sur des régions."},
+                "Localise": {"TYPE": "BLOCK", "ALIASES": ["Localize"], "PAGE": 91, "DESCRIPTION": "Orbitales localisées (Pipek-Mezey)."},
+                "WriteEigenvectors": {"TYPE": "FLAG", "DEFAULT": false},
+                "EigenvectorsAsText": {"TYPE": "FLAG", "DEFAULT": false, "CONDITION": "WriteEigenvectors = Yes"},
+                "WriteBandOut": {"TYPE": "FLAG", "DEFAULT": true},
+                "Printforces": {"TYPE": "FLAG", "DEFAULT": false, "DESCRIPTION": "Force le calcul et l'impression des forces même en calcul statique."},
+                "ElectrostaticPotential": {"TYPE": "BLOCK", "CONDITION": "SCC = Yes", "PAGE": 92},
+                "Polarisability": {"TYPE": "BLOCK", "CONDITION": "Hamiltonian = DFTB", "PAGE": 94, "DESCRIPTION": "Polarisabilité par théorie de perturbation (statique ou à fréquence donnée)."},
+                "ResponseKernel": {"TYPE": "BLOCK", "CONDITION": "Hamiltonian = DFTB", "PAGE": 94},
+                "CoordDerivatives": {"TYPE": "FLAG", "DEFAULT": false, "DESCRIPTION": "Dérivées secondes par rapport aux positions (dBand_dx.out, charges de Born)."}
+            },
+            "DESCRIPTION": "Analyses post-calcul et propriétés.",
+            "PAGE": 89
+        },
+
+        "PARSER_OPTIONS": {
+            "TYPE": "BLOCK",
+            "PATH": ["ParserOptions"],
+            "ARGUMENTS": {
+                "ParserVersion": {"TYPE": "INTEGER", "DEFAULT": "current"},
+                "WriteHSDInput": {"TYPE": "FLAG", "DEFAULT": true},
+                "IgnoreUnprocessedNodes": {"TYPE": "FLAG", "DEFAULT": false, "DANGEROUS": true},
+                "StopAfterParsing": {"TYPE": "FLAG", "DEFAULT": false, "DESCRIPTION": "Vérification syntaxique sans calcul — utile pour valider un input généré."}
+            },
+            "PAGE": 108
+        },
+
+        "PARALLEL": {
+            "TYPE": "BLOCK",
+            "PATH": ["Parallel"],
+            "REQUIRES_BUILD": "MPI",
+            "ARGUMENTS": {
+                "Groups": {"TYPE": "INTEGER", "DEFAULT": 1, "DESCRIPTION": "Groupes de processus : parallélisation sur les k-points et les spins. Doit diviser le nombre de processus MPI."},
+                "UseOmpThreads": {"TYPE": "FLAG", "DEFAULT": false, "DESCRIPTION": "Parallélisation hybride MPI/OpenMP (expérimental)."},
+                "Blacs": {"TYPE": "BLOCK", "ARGUMENTS": {"BlockSize": {"TYPE": "INTEGER", "DEFAULT": 32}}}
+            },
+            "PAGE": 109
+        }
+    },
+
+    "OUTPUT": {
+        "FILES": {
+            "detailed.out": {"FORMAT": "TEXT", "CONTENT": ["total_energy", "mermin_free_energy", "band_energy", "repulsive_energy", "dispersion_energy", "mulliken_charges", "forces", "dipole_moment", "stress", "fermi_level"], "PAGE": 111},
+            "results.tag": {"FORMAT": "TAGGED", "CONTENT": ["total_energy", "forces", "stress", "eigenvalues", "charges", "hessian"], "MACHINE_READABLE": true, "PAGE": 112},
+            "detailed.xml": {"FORMAT": "XML", "CONDITION": "WriteDetailedXML = Yes"},
+            "band.out": {"FORMAT": "TEXT", "CONTENT": ["eigenvalues", "occupations"], "PAGE": 111},
+            "md.out": {"FORMAT": "TEXT", "CONTENT": ["md_trajectory_energies", "temperature"], "PAGE": 115},
+            "geo_end.gen": {"FORMAT": "GEN", "CONTENT": ["final_geometry"]},
+            "geo_end.xyz": {"FORMAT": "XYZ", "CONTENT": ["trajectory"]},
+            "charges.bin": {"FORMAT": "BINARY", "CONTENT": ["restart_charges"]},
+            "hessian.out": {"FORMAT": "TEXT", "CONTENT": ["hessian"]},
+            "born.out": {"FORMAT": "TEXT", "CONTENT": ["born_charges"]},
+            "eigenvec.out": {"FORMAT": "TEXT", "CONDITION": "EigenvectorsAsText = Yes"},
+            "EXC.DAT": {"FORMAT": "TEXT", "CONTENT": ["excitation_energies", "oscillator_strengths"], "PAGE": 117},
+            "dftb_pin.hsd": {"FORMAT": "HSD", "CONTENT": ["processed_input"], "DESCRIPTION": "Input entièrement résolu, valeurs par défaut incluses — référence utile pour valider le composer."}
+        },
+        "PARSERS": {
+            "RECOMMENDED": "amac (results.tag + detailed.out)",
+            "ASE": "ase.calculators.dftb.Dftb (lit detailed.out / results.tag)",
+            "CCLIB": null
+        }
+    }
+}

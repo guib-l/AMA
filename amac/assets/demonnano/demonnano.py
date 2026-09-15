@@ -6,19 +6,19 @@ from amac.engine.software import FileIOSoftware
 
 
 @register_software
-class Gaussian(FileIOSoftware):
+class deMonNano(FileIOSoftware):
 
     # Nom du logiciel
-    NAME = "GAUSSIAN"
+    NAME = "DEMON"
 
     # Autres noms acceptés par le registre
-    ALIASES = ()
+    ALIASES = ("deMonNano",)
 
-    # ---------------------------------------------------------------
+    # -----------------------------------------------------
     # Command line
 
     def command(self, ctx):
-        raise NotImplementedError("Gaussian is out of scope for now, see TODO §5")
+        raise NotImplementedError("deMonNano is out of scope for now, see TODO §5")
 
     # ---------------------------------------------------------------
     # Available handler
@@ -32,7 +32,11 @@ class Gaussian(FileIOSoftware):
     def dipole(self,):
         pass
 
+    def eigenvalues(self,):
+        pass
+
     def forces(self,):
         pass
+
 
 

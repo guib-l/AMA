@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "amac"
+dynamic = ["version"]
+description = "Python wrapper for preparing inputs, launching calculations, and parsing results."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Hysfard" }
+]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Chemistry",
+]
+dependencies = [
+    "numpy>=2.0",
+    "ase>=3.23",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+]
+dev = [
+    "amac[test]",
+    "ruff>=0.15",
+]
+
+[tool.setuptools.dynamic]
+version = { attr = "amac.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["amac*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.json"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+# Start conservative: pyflakes (F) + a subset of pycodestyle (E) + isort (I).
+# Broaden this list once the codebase has been formatted once.
+select = ["E", "F", "I"]
+ignore = [
+    "E501",  # line-too-long: handled by the formatter, not enforced yet
+    "E741",  # ambiguous variable names (e.g. `l`) still present in the code
+]

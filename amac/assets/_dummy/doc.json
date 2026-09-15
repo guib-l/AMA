@@ -1,0 +1,172 @@
+{
+    "SOFTWARE": "DUMMY",
+    "VERSION": "1.0",
+    "REFERENCE": "Banc d'essai du socle AMAC, ne décrit aucun logiciel réel.",
+    "SYNTAX": "TREE",
+    "EXECUTION": ["FILEIO"],
+
+    "INPUT": {
+        "FILENAME": "input.json",
+        "FORMAT_DEFAULTS": {},
+        "RESOURCES": {"CPU": ["Resources", "Cpu"], "RAM": ["Resources", "Memory"]}
+    },
+
+    "MODULES": {
+        "SINGLE_POINT": {
+            "KEYWORD": "SinglePoint",
+            "ALIASES": ["SP", "ENERGY"],
+            "TARGET": ["Driver"],
+            "PERIODIC": "BOTH",
+            "REQUIRES": [],
+            "ARGUMENTS": {},
+            "DESCRIPTION": "Calcul statique sur la géométrie d'entrée."
+        },
+
+        "GEOMETRY_OPTIMISATION": {
+            "KEYWORD": "Optimisation",
+            "ALIASES": ["OPT"],
+            "TARGET": ["Driver"],
+            "PERIODIC": "MOLECULE",
+            "REQUIRES": [{"PATH": ["Output", "WriteForces"], "VALUE": true}],
+            "ARGUMENTS": {
+                "MaxSteps": {"TYPE": "INTEGER", "DEFAULT": 100, "RANGE": [1, 10000]},
+                "Algorithm": {"TYPE": "CHOICE", "DEFAULT": "BFGS", "VALUES": ["BFGS", "FIRE"]}
+            },
+            "DESCRIPTION": "Optimisation de géométrie moléculaire ; exige l'écriture des forces."
+        }
+    },
+
+    "METHODS": {
+        "HF": {
+            "KEYWORD": "HF",
+            "ALIASES": ["HARTREE_FOCK"],
+            "PATH": ["Hamiltonian"],
+            "PERIODIC": "BOTH",
+            "ARGUMENTS": {
+                "Charge": {"TYPE": "INTEGER", "DEFAULT": 0}
+            },
+            "DESCRIPTION": "Hartree-Fock factice."
+        },
+
+        "DFT": {
+            "KEYWORD": "DFT",
+            "PATH": ["Hamiltonian"],
+            "PERIODIC": "BOTH",
+            "VARIANTS": {
+                "PBE": {"KEYWORD": "PBE", "ALIASES": ["PBE96"], "CLASS": "GGA"},
+                "B3LYP": {"KEYWORD": "B3LYP", "CLASS": "HYBRID_GGA", "PERIODIC": "MOLECULE"},
+                "TPSSH": {"KEYWORD": "TPSSh", "CLASS": "META_HYBRID", "SETS": {"Grid": "Fine"}}
+            },
+            "ARGUMENTS": {
+                "Charge": {"TYPE": "INTEGER", "DEFAULT": 0},
+                "Multiplicity": {"TYPE": "INTEGER", "DEFAULT": 1, "RANGE": [1, 10]},
+                "Grid": {"TYPE": "CHOICE", "DEFAULT": "Medium", "VALUES": ["Coarse", "Medium", "Fine"]}
+            },
+            "DESCRIPTION": "DFT factice ; la fonctionnelle est une variante."
+        }
+    },
+
+    "PARAMETERS": {
+        "BASIS": {
+            "TYPE": "STRING",
+            "PATH": ["Basis"],
+            "MANDATORY": true,
+            "DESCRIPTION": "Nom de la base."
+        },
+
+        "SCF": {
+            "TYPE": "BLOCK",
+            "PATH": ["Scf"],
+            "ALIASES": ["SCF_OPTIONS"],
+            "ARGUMENTS": {
+                "MaxIter": {"TYPE": "INTEGER", "DEFAULT": 100, "RANGE": [1, 1000], "ALIASES": ["MaxIterations"]},
+                "Tolerance": {"TYPE": "REAL", "DEFAULT": 1e-6, "RANGE": [0.0, 1.0], "UNIT": "energy"},
+                "Mixer": {
+                    "TYPE": "CHOICE",
+                    "DEFAULT": "Broyden",
+                    "VALUES": ["Broyden", "Simple"],
+                    "COMMON_ARGUMENTS": {"History": {"TYPE": "INTEGER", "RANGE": [1, 50]}}
+                },
+                "MixingParameter": {
+                    "TYPE": "REAL",
+                    "RANGE": [0.0, 1.0],
+                    "MANDATORY_IF": [{"PATH": ["Mixer"], "VALUE": "Simple"}]
+                }
+            },
+            "DESCRIPTION": "Options du cycle SCF."
+        },
+
+        "DISPERSION": {
+            "TYPE": "CHOICE",
+            "PATH": ["Hamiltonian", "DFT", "Dispersion"],
+            "DEFAULT": null,
+            "VALUES": ["D3", "D4"],
+            "EXCLUDE_IF": [{"PATH": ["Hamiltonian"], "VALUE": "HF"}],
+            "COMPANION": {
+                "DispersionScaling": {
+                    "TYPE": "REAL",
+                    "PATH": ["Hamiltonian", "DFT", "DispersionScaling"],
+                    "RANGE": [0.0, 2.0],
+                    "MANDATORY_IF": [{"PATH": ["Hamiltonian", "DFT", "Dispersion"], "VALUE": "D4"}]
+                },
+                "ThreeBody": {"TYPE": "FLAG", "DEFAULT": false}
+            },
+            "DESCRIPTION": "Correction de dispersion, indisponible en HF ; paramètres compagnons."
+        },
+
+        "SOLVENT": {
+            "TYPE": "STRING",
+            "PATH": ["Solvation", "Solvent"],
+            "EXCLUDE_IF": [{"PATH": ["Solvation", "Epsilon"], "VALUE": "SET"}],
+            "DESCRIPTION": "Solvant prédéfini."
+        },
+
+        "EPSILON": {
+            "TYPE": "REAL",
+            "PATH": ["Solvation", "Epsilon"],
+            "RANGE": [1.0, 1000.0],
+            "EXCLUDE_IF": [{"PATH": ["Solvation", "Solvent"], "VALUE": "SET"}],
+            "DESCRIPTION": "Constante diélectrique explicite."
+        },
+
+        "INTEGRATION": {
+            "TYPE": "BLOCK",
+            "PATH": ["Integration"],
+            "ARGUMENTS": {"Pruning": {"TYPE": "FLAG", "DEFAULT": false}},
+            "VARIANTS": {
+                "LEBEDEV": {
+                    "KEYWORD": "Lebedev",
+                    "ARGUMENTS": {"Points": {"TYPE": "INTEGER", "RANGE": [6, 5810]}},
+                    "SETS": {"Pruning": true}
+                },
+                "BECKE": {"KEYWORD": "Becke", "ALIASES": ["BECKE_GRID"]}
+            },
+            "DESCRIPTION": "Grille d'intégration ; la variante se choisit par la clé variant."
+        },
+
+        "SAMPLING": {
+            "TYPE": "CHOICE",
+            "PATH": ["Sampling"],
+            "VARIANTS": {
+                "Gamma": {"TYPE": "BLOCK"},
+                "Grid": {"TYPE": "LIST", "DESCRIPTION": "Nombre de points par direction."}
+            },
+            "DESCRIPTION": "Échantillonnage ; le choix désigne une variante."
+        },
+
+        "OUTPUT": {
+            "TYPE": "BLOCK",
+            "PATH": ["Output"],
+            "ARGUMENTS": {
+                "WriteForces": {"TYPE": "FLAG", "DEFAULT": false}
+            },
+            "DESCRIPTION": "Contenu du fichier de sortie."
+        }
+    },
+
+    "OUTPUT": {
+        "FILES": {
+            "output.json": {"FORMAT": "JSON", "CONTENT": ["energy", "forces"]}
+        }
+    }
+}

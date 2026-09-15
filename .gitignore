@@ -1,7 +1,10 @@
 .env/
 data/
 archive/
-TODO.md
+TODO*.md
+.claude/
+requirements*.txt
+DOC_SCHEMA.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
