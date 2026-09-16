@@ -1,0 +1,7 @@
+{
+    "ID": "ELECTRIC_FIELD",
+    "ALIASES": [
+        "EFIELD"
+    ],
+    "DESCRIPTION": "Champ électrique externe uniforme."
+}

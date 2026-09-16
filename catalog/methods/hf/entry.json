@@ -1,0 +1,15 @@
+{
+    "ID": "HF",
+    "ALIASES": [
+        "HARTREE-FOCK",
+        "HARTREE_FOCK"
+    ],
+    "ACCEPTS": [
+        "REFERENCE",
+        "INTEGRAL_APPROXIMATION",
+        "DISPERSION",
+        "SOLVATION",
+        "EXCITED_STATES"
+    ],
+    "DESCRIPTION": "Hartree-Fock. Le caractère restreint ou non est l'axe REFERENCE, pas une méthode."
+}

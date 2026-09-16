@@ -180,7 +180,16 @@ class Driver(ABC):
         raise NotImplementedError(f"{type(self).__name__} does not implement run")
 
     def collect(self, software: Software, ctx: RunContext) -> None:
-        """Fill ``ctx.files`` and ``ctx.objects`` from the results of the library."""
+        """Fill ``ctx.files`` and ``ctx.objects`` from the results of the library.
+
+        A driver that collects fills ``ctx.files``, so that ``requires_files``
+        still applies, and stores the normalized dataclass of the software in
+        ``ctx.objects[OUTPUT_KEY]`` (``amac.engine.context.OUTPUT_KEY``), in the
+        units of the program. Native objects of the library go in other keys of
+        ``ctx.objects``. Handlers read the dataclass through
+        ``amac.engine.context.cached_output``, which rebuilds it from the files
+        when the entry is absent (AMAC path, reprocessing).
+        """
         raise NotImplementedError(f"{type(self).__name__} does not implement collect")
 
 

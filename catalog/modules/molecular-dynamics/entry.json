@@ -1,0 +1,8 @@
+{
+    "ID": "MOLECULAR_DYNAMICS",
+    "ALIASES": [
+        "MD",
+        "BOMD"
+    ],
+    "DESCRIPTION": "Dynamique moléculaire sur la surface de l'état fondamental."
+}

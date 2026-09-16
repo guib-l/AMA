@@ -1,0 +1,29 @@
+{
+    "ID": "MOLLER_PLESSET",
+    "ALIASES": [
+        "MPN"
+    ],
+    "VARIANT_REQUIRED": true,
+    "ACCEPTS": [
+        "REFERENCE",
+        "INTEGRAL_APPROXIMATION",
+        "LOCAL_CORRELATION",
+        "SOLVATION"
+    ],
+    "DESCRIPTION": "Théorie des perturbations de Møller-Plesset. RI et DLPNO sont des axes (INTEGRAL_APPROXIMATION, LOCAL_CORRELATION), pas des variantes.",
+    "VARIANTS": {
+        "MP2": {},
+        "SCS-MP2": {
+            "DESCRIPTION": "MP2 avec mise à l'échelle des composantes de spin (Grimme)."
+        },
+        "SOS-MP2": {
+            "DESCRIPTION": "MP2 limité à la composante de spins opposés."
+        },
+        "MP3": {},
+        "MP4": {
+            "ALIASES": [
+                "MP4(SDTQ)"
+            ]
+        }
+    }
+}

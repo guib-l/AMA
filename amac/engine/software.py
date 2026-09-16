@@ -174,7 +174,15 @@ class Software(ABC):
         return dict(load_config().for_software(self.NAME).env)
 
     def check_environment(self) -> None:
-        """Check executables and environment variables; does nothing by default."""
+        """Check that the environment can run the software; does nothing by default.
+
+        ``AMAC`` calls it when the calculator is created, before the validation and
+        the selection of the driver.
+
+        Raises:
+            ConfigurationError: If the environment cannot run the software, e.g. a
+                missing library.
+        """
 
     def version(self) -> str | None:
         """Return the software version, or ``None`` when unknown (default)."""
@@ -191,7 +199,8 @@ class FileIOSoftware(Software):
     ``@register_software`` and implements :meth:`command`. It may set
     ``composer_cls`` and ``EXECUTABLE_ENV``, and override :meth:`stdin` and
     :meth:`stdout_file`. Its runs require an executable (``REQUIRES_EXECUTABLE``).
-    ``amac.assets._dummy.dummy`` is a minimal example.
+    ``amac.assets._dummy.dummy`` is a minimal example without ``doc.json``, which
+    overrides :meth:`prepare` and :meth:`collect`.
     """
 
     EXECUTION = "FILEIO"

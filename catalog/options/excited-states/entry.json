@@ -1,0 +1,40 @@
+{
+    "ID": "EXCITED_STATES",
+    "DESCRIPTION": "Traitement des états excités appliqué à la méthode de l'état fondamental.",
+    "VARIANTS": {
+        "LR-TDDFT": {
+            "ALIASES": [
+                "TDDFT",
+                "TD-DFT",
+                "CASIDA",
+                "TD-DFTB",
+                "LR-TDDFTB"
+            ],
+            "DESCRIPTION": "Réponse linéaire (équations de Casida) sur l'hamiltonien de l'état fondamental."
+        },
+        "TDA": {
+            "ALIASES": [
+                "TAMM-DANCOFF"
+            ],
+            "DESCRIPTION": "Approximation de Tamm-Dancoff de la réponse linéaire."
+        },
+        "PP-RPA": {
+            "DESCRIPTION": "RPA particule-particule."
+        },
+        "DELTA-SCF": {
+            "ALIASES": [
+                "ΔSCF",
+                "MOM",
+                "NON-AUFBAU"
+            ],
+            "DESCRIPTION": "État excité obtenu par occupation non-Aufbau, optimisé comme un état fondamental."
+        },
+        "REKS": {
+            "ALIASES": [
+                "SSR",
+                "SA-REKS"
+            ],
+            "DESCRIPTION": "DFT d'ensemble à occupations fractionnaires (REKS, SA-REKS, SI-SA-REKS)."
+        }
+    }
+}

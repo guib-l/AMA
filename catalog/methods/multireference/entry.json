@@ -1,0 +1,22 @@
+{
+    "ID": "MULTIREFERENCE",
+    "ALIASES": [
+        "MR"
+    ],
+    "VARIANT_REQUIRED": true,
+    "ACCEPTS": [
+        "INTEGRAL_APPROXIMATION",
+        "SOLVATION"
+    ],
+    "DESCRIPTION": "Méthodes multiréférence : espace actif et corrélation dynamique.",
+    "VARIANTS": {
+        "CASSCF": {},
+        "CASPT2": {},
+        "NEVPT2": {
+            "ALIASES": [
+                "SC-NEVPT2"
+            ]
+        },
+        "MRCI": {}
+    }
+}

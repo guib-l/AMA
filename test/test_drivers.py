@@ -22,7 +22,6 @@ from amac.engine.drivers import (
     validate_driver_name,
 )
 from amac.exceptions import DriverUnavailableError, RunError, ValidationError
-from amac.parameter.composer import InputTree
 
 ROOT = Path(__file__).resolve().parents[1]
 FAKE_MODULES = ("amac_dummy_lib", "amac_probe_pkg")
@@ -43,29 +42,29 @@ from pathlib import Path
 
 
 class Output:
-    def __init__(self, energy, forces, keywords):
+    def __init__(self, energy, forces, method):
         self.energy = energy
         self.forces = forces
-        self.keywords = keywords
+        self.method = method
 
 
-def write_input(tree, directory):
+def write_input(spec, directory):
     path = Path(directory) / "input.json"
-    path.write_text(json.dumps(tree, sort_keys=True), encoding="utf-8")
+    path.write_text(json.dumps(spec, sort_keys=True), encoding="utf-8")
     return path
 
 
 def compute(directory, cpu=1):
     directory = Path(directory)
-    tree = json.loads((directory / "input.json").read_text(encoding="utf-8"))
-    result = {"energy": -2.0, "forces": [], "keywords": tree["keywords"], "cpu": cpu}
+    spec = json.loads((directory / "input.json").read_text(encoding="utf-8"))
+    result = {"energy": -2.0, "forces": [], "method": spec["method"], "cpu": cpu}
     (directory / "output.json").write_text(json.dumps(result), encoding="utf-8")
 
 
 def read_output(directory):
     path = Path(directory) / "output.json"
     data = json.loads(path.read_text(encoding="utf-8"))
-    return Output(data["energy"], data["forces"], data["keywords"])
+    return Output(data["energy"], data["forces"], data["method"])
 '''
 
 
@@ -76,7 +75,7 @@ def water() -> Atoms:
 
 def make_calc(tmp_path, **kwargs) -> AMAC:
     arguments = {"software": "dummy", "workdir": tmp_path / "work", **PARAMETERS}
-    return AMAC(**arguments | kwargs)
+    return AMAC(**arguments | {"validate": "off"} | kwargs)
 
 
 @pytest.fixture(autouse=True)
@@ -191,10 +190,10 @@ def test_explicit_driver_available(tmp_path, dummy_lib):
     assert result.properties["native_energy"] == pytest.approx(-2.0, abs=1e-12)
     ctx = result.context
     assert (ctx.driver, ctx.stdout) == ("dummy-lib", None)
-    assert isinstance(ctx.metadata["input_tree"], InputTree)
+    assert "input_tree" not in ctx.metadata
     assert (set(ctx.input_files), set(ctx.files)) == ({"input.json"}, {"output.json"})
     output = json.loads(ctx.files["output.json"].read_text(encoding="utf-8"))
-    assert (output["cpu"], output["keywords"]) == (2, ["PBE"])
+    assert (output["cpu"], output["method"]) == (2, "DFT")
     assert calc.to_dict()["exec_spec"]["driver"] == "Dummy-Lib"
 
     [loaded] = amac.load(calc.store(tmp_path / "driver"))
@@ -362,7 +361,7 @@ def test_configure_only_checks_the_driver_name(tmp_path, monkeypatch):
         amac.configure(software="dummy", driver="nope")
     amac.configure(software="dummy", driver="dummy-lib")
     with pytest.raises(DriverUnavailableError, match="pip install amac-dummy-lib"):
-        amac.calculator(PARAMETERS, platform="dummy", workdir=tmp_path)
+        amac.calculator(PARAMETERS, platform="dummy", workdir=tmp_path, validate="off")
 
 
 def test_import_amac_without_library():

@@ -1,15 +1,17 @@
-"""Handlers of the dummy software, reading the fake ``output.json``.
+"""Handlers of the dummy software, reading its normalized output.
 
-Values are returned as written by the fake program: the unit convention of the
-results (TODO §2) is not confirmed yet.
+They read :class:`~amac.assets._dummy.dummy.DummyOutput` through ``cached_output``:
+the one stored by a collecting driver, or the one parsed from ``output.json``. The
+dummy has no real units: values are returned as written by the fake program, where
+a real software converts them to ASE units.
 """
 
 from __future__ import annotations
 
-import json
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from amac.assets._dummy.dummy import OUTPUT_FILE
+from amac.assets._dummy.dummy import OUTPUT_FILE, parse_directory
+from amac.engine.context import cached_output
 from amac.engine.handlers import handler
 
 if TYPE_CHECKING:
@@ -19,21 +21,16 @@ if TYPE_CHECKING:
 @handler(software="DUMMY", requires_files=(OUTPUT_FILE,))
 def energy(ctx: RunContext) -> float:
     """Return the fake energy of ``output.json``, unit unchanged."""
-    return _read_output(ctx)["energy"]
+    return cached_output(ctx, parse_directory).energy
 
 
 @handler(software="DUMMY", requires_files=(OUTPUT_FILE,))
 def forces(ctx: RunContext) -> list[list[float]]:
     """Return the fake forces of ``output.json``, unit unchanged."""
-    return _read_output(ctx)["forces"]
+    return cached_output(ctx, parse_directory).forces
 
 
 @handler(software="DUMMY", drivers=("dummy-lib",))
 def native_energy(ctx: RunContext) -> float:
     """Return the energy of the native object read by ``DummyLibraryDriver``."""
     return ctx.objects["dummy_lib"].energy
-
-
-def _read_output(ctx: RunContext) -> dict[str, Any]:
-    with ctx.files[OUTPUT_FILE].open(encoding="utf-8") as stream:
-        return json.load(stream)

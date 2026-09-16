@@ -14,12 +14,13 @@ writes the input, runs the program, extracts the requested properties with
 
 ## Installation
 
-AMAC requires Python ≥ 3.12. It is not packaged yet (no `pyproject.toml`, no
-`pip install amac`): use it from a checkout of the repository.
+AMAC requires Python ≥ 3.12. It is not published on PyPI (no `pip install amac`):
+install it from a checkout of the repository.
 
 ```bash
-python -m pip install -r requirements.txt       # numpy, scipy, ase, cclib
-python -m pip install -r requirements-dev.txt   # the above, plus pytest
+python -m pip install -e .              # numpy, ase
+python -m pip install -e ".[test]"      # the above, plus pytest
+python -m pip install -e ".[parsers]"   # optional driver libraries: orca, parsers, dftbplus
 ```
 
 Run your scripts from the repository root with `python -m ...`, or add the root to
@@ -40,6 +41,7 @@ water = Atoms("OH2", positions=[[0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]])
 
 calc = AMAC(
     software="dummy",
+    validate="off",  # the dummy software has no doc.json
     method="DFT",
     method_args={"variant": "PBE"},
     module="SINGLE_POINT",
@@ -71,6 +73,7 @@ amac.calculator(
         "parameters": {"BASIS": "sto-3g"},
     },
     platform="dummy",
+    validate="off",
     label="facade",
     handlers=[_dummy.energy],
 )
@@ -120,9 +123,9 @@ The exceptions are exported by the package: `amac.AMACError` (base class),
 ```python
 try:
     AMAC(
-        software="dummy",
+        software="dummy",  # no doc.json: refused in "strict" mode
         method="DFT",
-        method_args={"variant": "PBE0"},  # unknown variant
+        method_args={"variant": "PBE"},
         parameters={"BASIS": "sto-3g"},
     )
 except amac.ValidationError as error:
@@ -154,6 +157,7 @@ its result is the handler name.
 ```python
 calc = AMAC(
     software="dummy",
+    validate="off",
     method="DFT",
     method_args={"variant": "PBE"},
     parameters={"BASIS": "sto-3g"},
@@ -195,6 +199,7 @@ print(result.errors[0])  # Handler 'broken' failed: ZeroDivisionError(...)
 ```python
 scan = AMAC(
     software="dummy",
+    validate="off",
     method="DFT",
     method_args={"variant": "PBE"},
     parameters={"BASIS": "sto-3g"},
@@ -347,19 +352,14 @@ print(amac.reprocess(reloaded, [_dummy.forces]).properties)  # {'forces': []}
 
 ### Canonical catalog
 
-`amac/assets/catalog/` names methods, modules and options independently of any
-software (`B3LYP`, `DFTB2`, `GEOMETRY_OPTIMISATION`, `D3(BJ)`, ...), with their
-aliases. Each `doc.json` links its nodes to these names with `CANONICAL`, which gives
-the cross-software equivalences:
-
-```python
-amac.available("scc-dftb")  # {"DFTBP": (Link(canonical="DFTB2", keyword="DFTB2", ...),)}
-```
-
-`python -m amac.assets.catalog` regenerates `available_methods.json`,
-`available_modules.json` and `available_options.json`. Formats are described in
-`amac/assets/CATALOG_SCHEMA.md` and in the `CANONICAL` section of
-`amac/assets/DOC_SCHEMA.md`.
+`catalog/`, at the repository root, names methods, modules and options independently
+of any software (`B3LYP`, `DFTB2`, `GEOMETRY_OPTIMISATION`, `D3(BJ)`, ...), with their
+aliases. Each top-level entry has its own directory,
+`catalog/<methods|modules|options>/<slug>/`, holding `entry.json` and a `README.md`
+(summary and references). Each `doc.json` links its nodes to these names with
+`CANONICAL`. Formats are described in `CATALOG_SCHEMA.md` and in the `CANONICAL`
+section of `DOC_SCHEMA.md`; the `catalog-curator` agent (`.claude/agents/`) adds new
+entries.
 
 ## Adding a software
 
@@ -444,15 +444,19 @@ amac.available("scc-dftb")  # {"DFTBP": (Link(canonical="DFTB2", keyword="DFTB2"
    | `frequencies` | Vibrational frequencies |
    | `hessian` | Hessian matrix |
 
-   Values are returned in the units of the program: unit conversion is not decided
-   yet.
+   Handlers return ASE units (eV, Å): the normalized dataclass of a software keeps
+   the units of the program, and the handlers convert them. DFTB+ follows this rule
+   today; the other packages will as they are written.
 
 5. **Import the software module** explicitly in `amac/assets/__init__.py` (there is
    no filesystem scan).
 
 The dummy software (`amac/assets/_dummy/`) is a complete minimal example of both
-kinds. The packages of ORCA, Gaussian, DFTB+ and deMonNano exist but expose no
-handler yet.
+kinds, without `doc.json`: `DummySoftware` writes its input in `prepare` and lists
+its output in `collect`, and its calculations run with `validate="off"`. The
+package of DFTB+ is complete (`composer.py`, `parser.py`, `handlers.py`,
+`drivers.py`); those of ORCA, Gaussian and deMonNano exist but expose no handler
+yet.
 
 ## Using a dedicated library
 
@@ -467,8 +471,9 @@ stays available everywhere.
 | `"auto"` | First driver of `Software.DRIVERS` whose library is installed, whose environment is compatible and which accepts `raw`; otherwise `"amac"`, with the reason of each discarded driver in `provenance["driver_fallback"]` |
 | `"<name>"` | That driver: `DriverUnavailableError`, with the `pip install` command, when its library is missing or its environment incompatible; `ValueError` for an unknown name |
 
-- Libraries are never required. The known ones are listed, commented out, in
-  `requirements-optional.txt`; a driver imports its library inside its phases
+- Libraries are never required. The known ones are declared as optional
+  dependencies in `pyproject.toml` (`orca`, `parsers`, `dftbplus`); a driver
+  imports its library inside its phases
   only, so `import amac` works without them.
 - `amac.configure(software=..., driver=...)` only checks the name; availability is
   checked when the calculator is created.
@@ -477,9 +482,9 @@ stays available everywhere.
   exception chained), or a `Result(success=False)` with `raise_on_error=False`.
 - Each phase (`prepare`, `run`, `collect`) goes through the driver when it is in
   `Driver.PHASES`, otherwise through the software. A driver finds the intermediate
-  tree of the spec in `ctx.metadata["input_tree"]`, keeps its files in
-  `ctx.directory`, fills `ctx.files` when it collects, and stores native objects in
-  `ctx.objects`.
+  tree of the spec in `ctx.metadata["input_tree"]` (when the software has a
+  `doc.json`), keeps its files in `ctx.directory`, fills `ctx.files` when it
+  collects, and stores native objects in `ctx.objects`.
 - `raw` keywords need `SUPPORTS_RAW` from a driver that prepares the input: an
   explicit driver raises `ValidationError`, `"auto"` discards it.
 - A driver running the program gets `cpu`, `ram`, `timeout`, `env` and the resolved
@@ -529,8 +534,8 @@ Implemented: canonical specs, `doc.json` loading and validation (variants, `SETS
 `COMPANION`, `COMMON_ARGUMENTS`), the intermediate tree, the local executor,
 handlers, the `AMAC` class with per-image overrides and reprocessing, the facade,
 JSON storage with provenance, optional library drivers (interface and selection),
-the canonical catalog and its equivalence tables, and the dummy programs and driver
-used by the tests.
+the canonical catalog and its equivalence tables, and the dummy programs (without
+`doc.json`) and driver used by the tests.
 
 Not implemented yet:
 

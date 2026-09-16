@@ -6,11 +6,11 @@ from pathlib import Path
 import pytest
 
 import amac
-from amac.assets._dummy.dummy import DummySoftware
 from amac.exceptions import ValidationError
 from amac.parameter.schema import REQUIRED_KEYS, Schema, load
 
 DFTBPLUS_DOC = Path(amac.__file__).parent / "assets" / "dftbplus" / "doc.json"
+SCHEMA_DOC = Path(__file__).parent / "fixtures" / "schema.json"
 
 
 def minimal_doc(**sections) -> dict:
@@ -21,7 +21,7 @@ def minimal_doc(**sections) -> dict:
 
 @pytest.fixture
 def schema() -> Schema:
-    return load(DummySoftware.DOC)
+    return load(SCHEMA_DOC)
 
 
 def test_load_exposes_sections(schema):
@@ -40,7 +40,7 @@ def test_schema_is_read_only(schema):
 
 
 def test_load_is_cached():
-    assert load(DummySoftware.DOC) is load(str(DummySoftware.DOC))
+    assert load(SCHEMA_DOC) is load(str(SCHEMA_DOC))
 
 
 @pytest.mark.parametrize(

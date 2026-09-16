@@ -192,7 +192,7 @@ def test_precedence(fake_software, monkeypatch, xdg_config):
     def location(calc):
         return calc.software.locate_executable(calc.exec_spec)
 
-    assert location(AMAC(software="fakeprog", **PARAMETERS)) is None
+    assert location(AMAC(software="fakeprog", validate="off", **PARAMETERS)) is None
     write_config(xdg_config, '[software.fake-prog]\nexecutable = "/file/prog"\n')
     clear_config_cache()
     assert amac.which("FAKEPROG") == ExecutableLocation(
@@ -201,11 +201,13 @@ def test_precedence(fake_software, monkeypatch, xdg_config):
     monkeypatch.setenv(ENV_NAME, "/env/prog")
     assert amac.which("FAKEPROG") == ExecutableLocation("/env/prog", f"env:{ENV_NAME}")
     amac.configure(software="FAKEPROG", executable="/configured/prog")
-    configured = amac.calculator(PARAMETERS, "FAKEPROG")
+    configured = amac.calculator(PARAMETERS, "FAKEPROG", validate="off")
     assert location(configured) == ExecutableLocation(
         "/configured/prog", "executable="
     )
-    explicit = amac.calculator(PARAMETERS, "FAKEPROG", executable="/explicit/prog")
+    explicit = amac.calculator(
+        PARAMETERS, "FAKEPROG", validate="off", executable="/explicit/prog"
+    )
     assert location(explicit).path == "/explicit/prog"
     assert amac.which("FAKEPROG").path == "/env/prog"
 
@@ -213,7 +215,9 @@ def test_precedence(fake_software, monkeypatch, xdg_config):
 def test_path_never_searched(fake_software, program_in_path, tmp_path, xdg_config):
     assert amac.which("ORCA") is None
     assert amac.which("FAKEPROG") is None
-    calc = AMAC(software="FAKEPROG", workdir=tmp_path / "work", **PARAMETERS)
+    calc = AMAC(
+        software="FAKEPROG", workdir=tmp_path / "work", validate="off", **PARAMETERS
+    )
     assert calc.software.resolve_executable(calc.exec_spec) is None
     expected = (
         "FAKEPROG: executable not found. Tried: executable=/configure(), "
@@ -233,7 +237,9 @@ def test_non_absolute_executable_rejected(
 ):
     monkeypatch.chdir(tmp_path)
     kwargs = give_executable(source, value, monkeypatch, xdg_config)
-    calc = AMAC(software="FAKEPROG", workdir=tmp_path / "work", **PARAMETERS)
+    calc = AMAC(
+        software="FAKEPROG", workdir=tmp_path / "work", validate="off", **PARAMETERS
+    )
     exec_spec = replace(calc.exec_spec, **kwargs)
     assert calc.software.resolve_executable(exec_spec) == value
     with pytest.raises(ExecutableNotFoundError, match="must be an absolute") as info:
@@ -248,7 +254,9 @@ def test_tilde_expanded(fake_software, tmp_path, monkeypatch, xdg_config, source
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     script = write_program(tmp_path / "home" / "opt" / "orca" / "orca")
     kwargs = give_executable(source, "~/opt/orca/orca", monkeypatch, xdg_config)
-    calc = AMAC(software="FAKEPROG", workdir=tmp_path / "work", **PARAMETERS)
+    calc = AMAC(
+        software="FAKEPROG", workdir=tmp_path / "work", validate="off", **PARAMETERS
+    )
     result = calc.execute(water(), **kwargs)
     assert result.success
     assert result.context.metadata["executable"] == {
@@ -260,7 +268,9 @@ def test_tilde_expanded(fake_software, tmp_path, monkeypatch, xdg_config, source
 @pytest.mark.parametrize("name", ["missing", "not-executable"])
 def test_unusable_executable(fake_software, tmp_path, name):
     (tmp_path / "not-executable").write_text("", encoding="utf-8")
-    calc = AMAC(software="FAKEPROG", workdir=tmp_path / "work", **PARAMETERS)
+    calc = AMAC(
+        software="FAKEPROG", workdir=tmp_path / "work", validate="off", **PARAMETERS
+    )
     with pytest.raises(ExecutableNotFoundError, match="does not exist or is not"):
         calc.execute(water(), executable=str(tmp_path / name))
     assert not (tmp_path / "work").exists()
@@ -279,6 +289,7 @@ def test_run_environment_and_provenance(
         monkeypatch.setenv(name, "os")
     calc = AMAC(
         software="FAKEPROG",
+        validate="off",
         workdir=tmp_path / "work",
         cpu=2,
         env={"AMAC_TEST_B": "spec"},
@@ -297,6 +308,7 @@ def test_file_env_not_stored(fake_software, program, tmp_path, xdg_config):
     write_config(xdg_config, "[software.FAKEPROG]\nenv = { SECRET = 'from-file' }\n")
     calc = AMAC(
         software="FAKEPROG",
+        validate="off",
         workdir=tmp_path / "work",
         executable=str(program),
         env={"B": "spec"},

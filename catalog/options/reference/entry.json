@@ -1,0 +1,34 @@
+{
+    "ID": "REFERENCE",
+    "DESCRIPTION": "Traitement du spin de la fonction d'onde ou de la densité de référence.",
+    "VARIANTS": {
+        "RESTRICTED": {
+            "ALIASES": [
+                "RHF",
+                "RKS",
+                "CLOSED_SHELL"
+            ]
+        },
+        "UNRESTRICTED": {
+            "ALIASES": [
+                "UHF",
+                "UKS",
+                "COLLINEAR_SPIN"
+            ]
+        },
+        "RESTRICTED_OPEN": {
+            "ALIASES": [
+                "ROHF",
+                "ROKS"
+            ]
+        },
+        "GENERALISED": {
+            "ALIASES": [
+                "GHF",
+                "GKS",
+                "NONCOLLINEAR_SPIN"
+            ],
+            "DESCRIPTION": "Spin non colinéaire."
+        }
+    }
+}

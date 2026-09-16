@@ -1,0 +1,29 @@
+{
+    "ID": "COUPLED_CLUSTER",
+    "ALIASES": [
+        "CC"
+    ],
+    "VARIANT_REQUIRED": true,
+    "ACCEPTS": [
+        "REFERENCE",
+        "INTEGRAL_APPROXIMATION",
+        "LOCAL_CORRELATION",
+        "SOLVATION"
+    ],
+    "DESCRIPTION": "Coupled cluster et interaction de configurations quadratique.",
+    "VARIANTS": {
+        "CC2": {},
+        "CCSD": {},
+        "CCSD(T)": {
+            "DESCRIPTION": "CCSD avec triples perturbatifs."
+        },
+        "CCSDT": {},
+        "QCISD": {
+            "DESCRIPTION": "Interaction de configurations quadratique (proche de CCSD)."
+        },
+        "QCISD(T)": {},
+        "EOM-CCSD": {
+            "DESCRIPTION": "CCSD à équations du mouvement : états excités, ionisés ou attachés."
+        }
+    }
+}

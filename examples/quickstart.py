@@ -6,7 +6,8 @@ Usage::
 
 Without ``WORKDIR``, everything is written in a temporary directory removed at the
 end. The dummy software needs no external program: its fake calculation runs with
-the current Python interpreter.
+the current Python interpreter. It has no ``doc.json``: its calculations run with
+``validate="off"``.
 """
 
 import sys
@@ -48,9 +49,10 @@ def atom_count(ctx) -> int:
 
 
 def run_with_class(workdir: Path) -> None:
-    """Explicit calculator: validate, run, extract, store and reload."""
+    """Explicit calculator: run, extract, store and reload."""
     calc = AMAC(
         software="dummy",
+        validate="off",  # the dummy software has no doc.json
         method="DFT",
         method_args={"variant": "B3LYP"},
         module=None,
@@ -84,6 +86,7 @@ def run_with_facade(workdir: Path) -> None:
             "parameters": {"BASIS": "sto-3g"},
         },
         platform="dummy",
+        validate="off",
         label="facade",
         handlers=[_dummy.energy, atom_count],
     )

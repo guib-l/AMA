@@ -1,0 +1,7 @@
+{
+    "ID": "NEB",
+    "ALIASES": [
+        "NUDGED_ELASTIC_BAND"
+    ],
+    "DESCRIPTION": "Chemin d'énergie minimale entre deux géométries."
+}

@@ -1,6 +1,23 @@
-"""DFTB+, registered as ``DFTBP``.
+"""DFTB+, registered as ``DFTBP``, and its handlers.
 
-Its handlers are exposed here (``from amac.assets import dftbplus``, then
-``dftbplus.energy``) once implemented; none exists yet. The common handler
-names are listed in "Adding a software" in the README.
+``from amac.assets import dftbplus``, then ``dftbplus.energy``. Handlers return
+ASE units (eV, Å); the parser keeps the units of the program.
 """
+
+from amac.assets.dftbplus.handlers import (
+    charges,
+    dipole,
+    energy,
+    final_geometry,
+    forces,
+    orbital_energies,
+)
+
+__all__ = [
+    "charges",
+    "dipole",
+    "energy",
+    "final_geometry",
+    "forces",
+    "orbital_energies",
+]

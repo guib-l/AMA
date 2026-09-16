@@ -1,0 +1,8 @@
+{
+    "ID": "EXTERNAL_DRIVER",
+    "ALIASES": [
+        "SOCKET",
+        "I-PI"
+    ],
+    "DESCRIPTION": "Géométrie pilotée par un programme externe."
+}

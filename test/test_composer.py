@@ -1,18 +1,21 @@
-"""Tests of amac.parameter.composer on the dummy doc.json."""
+"""Tests of amac.parameter.composer on the sample doc.json of test/fixtures."""
 
 import json
 from pathlib import Path
 
 import pytest
 
-from amac.assets._dummy.dummy import DummyComposer, DummySoftware
+from amac.assets._dummy.dummy import DummySoftware
 from amac.engine.context import RunContext
 from amac.engine.software import FileIOSoftware
+from amac.exceptions import ValidationError
 from amac.parameter.composer import (
     Composer,
     FlatComposer,
+    InputTree,
     KeywordBlockComposer,
     NamelistComposer,
+    Node,
     TreeComposer,
     get_composer,
     inject_resources,
@@ -23,10 +26,21 @@ from amac.parameter.composer import (
 from amac.parameter.parameters import CalculationSpec, ExecutionSpec
 from amac.parameter.schema import Schema, load
 
+SCHEMA_DOC = Path(__file__).parent / "fixtures" / "schema.json"
+KEYWORD_BLOCK_DOC = Path(__file__).parent / "fixtures" / "keyword_block.json"
+HSD_FORMAT = {
+    "ASSIGN": " = ",
+    "OPEN": "{",
+    "CLOSE": "}",
+    "PADDING": "  ",
+    "SEPARATOR": " ",
+    "BOOLEAN": ["Yes", "No"],
+    "MODIFIER": "[{unit}]",
+}
 
 @pytest.fixture
 def schema() -> Schema:
-    return load(DummySoftware.DOC)
+    return load(SCHEMA_DOC)
 
 
 def make_spec(**overrides) -> CalculationSpec:
@@ -40,7 +54,7 @@ def make_spec(**overrides) -> CalculationSpec:
 
 
 def dummy_doc() -> dict:
-    return json.loads(DummySoftware.DOC.read_text(encoding="utf-8"))
+    return json.loads(SCHEMA_DOC.read_text(encoding="utf-8"))
 
 
 def write_schema(tmp_path: Path, doc: dict) -> Schema:
@@ -54,8 +68,16 @@ def make_ctx(directory: Path, spec: CalculationSpec | None = None) -> RunContext
     return RunContext(None, spec or make_spec(), exec_spec, directory)
 
 
+def hsd(value=None, unit=None, **children) -> Node:
+    return Node(value=value, unit=unit, format=dict(HSD_FORMAT), children=children)
+
+
+def hsd_tree(raw=None, **nodes) -> InputTree:
+    return InputTree(nodes=nodes, raw=raw, format=dict(HSD_FORMAT))
+
+
 class NoOverrideSoftware(FileIOSoftware):
-    DOC = DummySoftware.DOC
+    DOC = SCHEMA_DOC
 
     def command(self, ctx):
         return []
@@ -68,6 +90,10 @@ class StaticComposer(Composer):
 
 class OverrideSoftware(NoOverrideSoftware):
     composer_cls = StaticComposer
+
+
+class PrefixedComposer(KeywordBlockComposer):
+    KEYWORD_PREFIX = "!"
 
 
 def test_translate_resolves_aliases(schema):
@@ -170,6 +196,206 @@ def test_raw_is_passed_unchanged(schema):
     assert "NotAnOption" not in tree.nodes
 
 
+def test_tree_render_hsd():
+    tree = hsd_tree(
+        raw=["ParserOptions = {", "  ParserVersion = 14", "}"],
+        Hamiltonian=hsd(
+            "DFTB",
+            DFTB=hsd(
+                SCC=hsd(True),
+                Mixer=hsd("Broyden", Broyden=hsd(MixingParameter=hsd(0.2))),
+                Filling=hsd("Fermi", Temperature=hsd(300, unit="K")),
+                KPointsAndWeights=hsd(
+                    "SupercellFolding",
+                    supercellfolding=hsd([[2, 0, 0], [0, 2, 0], [0.5, 0.5, 0.5]]),
+                ),
+                SlaterKosterFiles=hsd(
+                    "Type2FileNames",
+                    Type2FileNames=hsd(Prefix=hsd("./sk dir/"), Suffix=hsd(".skf")),
+                ),
+            ),
+        ),
+        Driver=hsd(),
+        Geometry=hsd("GenFormat", GenFormat=hsd()),
+        Analysis=hsd(
+            WriteBandOut=hsd(False),
+            ProjectStates=hsd(Region=hsd(Atoms=hsd([1, 2, 3]), Label=hsd(""))),
+        ),
+        LatticeVectors=hsd([[1.0, 0.0], [0.0, 1.0]], unit="Angstrom"),
+    )
+    expected = """\
+Hamiltonian = DFTB {
+  SCC = Yes
+  Mixer = Broyden {
+    MixingParameter = 0.2
+  }
+  Filling = Fermi {
+    Temperature [K] = 300
+  }
+  KPointsAndWeights = SupercellFolding {
+    2 0 0
+    0 2 0
+    0.5 0.5 0.5
+  }
+  SlaterKosterFiles = Type2FileNames {
+    Prefix = "./sk dir/"
+    Suffix = .skf
+  }
+}
+Driver = {}
+Geometry = GenFormat {}
+Analysis = {
+  WriteBandOut = No
+  ProjectStates = {
+    Region = {
+      Atoms = 1 2 3
+      Label = ""
+    }
+  }
+}
+LatticeVectors [Angstrom] = {
+  1.0 0.0
+  0.0 1.0
+}
+ParserOptions = {
+  ParserVersion = 14
+}
+"""
+    before = tree.to_dict()
+    assert TreeComposer().render(tree) == expected
+    assert tree.to_dict() == before
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("DFTB", "Name = DFTB\n"),
+        ("", 'Name = ""\n'),
+        ("two words", 'Name = "two words"\n'),
+        ("a\tb", 'Name = "a\tb"\n'),
+        *((f"a{char}b", f'Name = "a{char}b"\n') for char in "{}=[]#"),
+    ],
+)
+def test_tree_render_quoting(value, expected):
+    assert TreeComposer().render(hsd_tree(Name=hsd(value))) == expected
+
+
+def test_tree_render_rejects_double_quote():
+    with pytest.raises(ValueError, match="containing"):
+        TreeComposer().render(hsd_tree(Name=hsd('say "hi"')))
+
+
+def test_tree_render_rejects_keywords():
+    tree = hsd_tree(Driver=hsd())
+    tree.keywords = ["GFN2-xTB"]
+    with pytest.raises(ValueError, match="GFN2-xTB"):
+        TreeComposer().render(tree)
+
+
+def test_tree_render_raw_str():
+    tree = hsd_tree(raw="Parallel = {}", Driver=hsd())
+    assert TreeComposer().render(tree) == "Driver = {}\nParallel = {}\n"
+
+
+def test_tree_render_raw_dict_merges_into_copy():
+    tree = hsd_tree(
+        raw={"hamiltonian": {"dftb": {"Charge": -1}}, "Options": {"WriteHS": True}},
+        Hamiltonian=hsd("DFTB", DFTB=hsd(SCC=hsd(True))),
+    )
+    before = tree.to_dict()
+    expected = """\
+Hamiltonian = DFTB {
+  SCC = Yes
+  Charge = -1
+}
+Options = {
+  WriteHS = Yes
+}
+"""
+    assert TreeComposer().render(tree) == expected
+    assert tree.to_dict() == before
+
+
+def test_tree_render_raw_dict_conflict():
+    tree = hsd_tree(
+        raw={"HAMILTONIAN": {"DFTB": {"SCC": False}}},
+        Hamiltonian=hsd("DFTB", DFTB=hsd(SCC=hsd(True))),
+    )
+    with pytest.raises(ValidationError, match="Conflicting values at HAMILTONIAN"):
+        TreeComposer().render(tree)
+
+
+@pytest.mark.parametrize(
+    ("composer_cls", "first_line"),
+    [
+        (KeywordBlockComposer, "B3LYP Opt def2-SVP"),
+        (PrefixedComposer, "! B3LYP Opt def2-SVP"),
+    ],
+)
+def test_keyword_block_compose(composer_cls, first_line):
+    spec = CalculationSpec.from_kwargs(
+        method="DFT",
+        method_args={"variant": "B3LYP"},
+        module="OPT",
+        parameters={
+            "BASIS": "def2-SVP",
+            "SCF": {
+                "MaxIter": 50,
+                "KeepInts": True,
+                "Shift": {"Shift": 0.1, "ErrOff": 0.1},
+            },
+        },
+        raw=["%output", "  Print[P_Hirshfeld] 1", "end"],
+    )
+    files = composer_cls().compose(
+        spec, load(KEYWORD_BLOCK_DOC), None, ExecutionSpec(cpu=4, ram=2000)
+    )
+    expected = f"""\
+{first_line}
+%output
+  Print[P_Hirshfeld] 1
+end
+%scf
+  MaxIter 50
+  KeepInts true
+  Shift
+    Shift 0.1
+    ErrOff 0.1
+  end
+end
+%pal
+  nprocs 4
+end
+%maxcore 2000
+"""
+    assert files == {"input.inp": expected}
+
+
+def test_keyword_block_raw_dict():
+    spec = CalculationSpec.from_kwargs(
+        method="DFT",
+        parameters={"SCF": {"MaxIter": 50}},
+        raw={"%SCF": {"TolE": 1e-8}, "%method": {"RunTyp": "Energy"}},
+    )
+    files = PrefixedComposer().compose(
+        spec, load(KEYWORD_BLOCK_DOC), None, ExecutionSpec()
+    )
+    expected = """\
+! SP
+%scf
+  MaxIter 50
+  TolE 1e-08
+end
+%pal
+  nprocs 1
+end
+%method
+  RunTyp Energy
+end
+"""
+    assert files == {"input.inp": expected}
+
+
 @pytest.mark.parametrize(
     ("syntax", "composer_cls"),
     [
@@ -179,9 +405,13 @@ def test_raw_is_passed_unchanged(schema):
         ("FLAT", FlatComposer),
     ],
 )
-def test_get_composer_not_implemented(schema, syntax, composer_cls):
+def test_get_composer(syntax, composer_cls):
     assert get_composer(syntax) is composer_cls
-    with pytest.raises(NotImplementedError, match=syntax.upper()):
+
+
+@pytest.mark.parametrize("composer_cls", [NamelistComposer, FlatComposer])
+def test_composer_not_implemented(schema, composer_cls):
+    with pytest.raises(NotImplementedError, match=composer_cls.SYNTAX):
         composer_cls().compose(make_spec(), schema, None, ExecutionSpec())
 
 
@@ -192,12 +422,22 @@ def test_get_composer_unknown_syntax():
 
 def test_composer_cls_defaults_to_syntax(tmp_path):
     assert NoOverrideSoftware.composer_cls is None
-    with pytest.raises(NotImplementedError, match="TREE"):
-        NoOverrideSoftware().prepare(make_ctx(tmp_path))
+    ctx = make_ctx(tmp_path, make_spec(method="HF", method_args={}))
+    NoOverrideSoftware().prepare(ctx)
+    assert ctx.input_files == {"input.json": tmp_path / "input.json"}
+    expected = """\
+Hamiltonian = HF
+Driver = SinglePoint
+Basis = sto-3g
+Resources = {
+  Cpu = 2
+  Memory = 1000
+}
+"""
+    assert (tmp_path / "input.json").read_text(encoding="utf-8") == expected
 
 
 def test_composer_cls_override(tmp_path):
-    assert DummySoftware.composer_cls is DummyComposer
     ctx = make_ctx(tmp_path)
     OverrideSoftware().prepare(ctx)
     assert ctx.input_files == {"custom.txt": tmp_path / "custom.txt"}
@@ -227,15 +467,4 @@ def test_dummy_prepare_writes_deterministic_input(tmp_path):
     assert contents[0] == contents[1]
     data = json.loads(contents[0])
     assert contents[0] == json.dumps(data, indent=4, sort_keys=True) + "\n"
-    nodes = data["nodes"]
-    assert nodes["Hamiltonian"]["value"] == "DFT"
-    assert nodes["Hamiltonian"]["children"]["DFT"]["children"]["Charge"]["value"] == 1
-    driver = nodes["Driver"]
-    assert driver["value"] == "Optimisation"
-    assert driver["children"]["Optimisation"]["children"]["MaxSteps"]["value"] == 10
-    assert nodes["Scf"]["children"]["MaxIter"]["value"] == 50
-    assert nodes["Output"]["children"]["WriteForces"]["value"] is True
-    assert nodes["Resources"]["children"]["Cpu"]["value"] == 2
-    assert nodes["Resources"]["children"]["Memory"]["value"] == 1000
-    assert data["keywords"] == ["PBE"]
-    assert data["raw"] == {"Extra": "keep"}
+    assert data == spec.to_dict()

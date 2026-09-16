@@ -26,6 +26,7 @@
             "UPPERCASE": false,
             "LOWERCASE": false,
             "BOOLEAN": ["Yes", "No"],
+            "UNITS": {"energy": "Hartree", "length": "Bohr", "force": "Hartree/Bohr", "time": "au", "pressure": "au", "frequency": "au", "velocity": "au", "electric_field": "au"},
             "MODIFIER": "[{unit}]",
             "COMMENT": "#",
             "INCLUDE": "<<< \"{path}\""
@@ -75,6 +76,19 @@
             "PERIODIC": "BOTH",
             "ARGUMENTS": {},
             "DESCRIPTION": "Calcul statique sur la géométrie d'entrée (Driver = {}).",
+            "PAGE": 15
+        },
+
+        "GRADIENT": {
+            "KEYWORD": "",
+            "ALIASES": ["FORCES", "ENGRAD"],
+            "CANONICAL": {"GRADIENT": {"EQUIVALENCE": "APPROX", "NOTE": "Calcul statique ; les forces viennent de Analysis { Printforces = Yes }, écrit par le composer."}},
+            "TARGET": ["Driver"],
+            "PERIODIC": "BOTH",
+            "ARGUMENTS": {
+                "Printforces": {"TYPE": "FLAG", "PATH": ["Analysis", "Printforces"], "DEFAULT": false, "DESCRIPTION": "Impression des forces ; le composer l'écrit quand le module est GRADIENT et que l'utilisateur ne l'a pas fixé."}
+            },
+            "DESCRIPTION": "Énergie et forces sur la géométrie d'entrée : calcul statique (Driver = {}) complété par Analysis { Printforces = Yes }.",
             "PAGE": 15
         },
 
@@ -381,14 +395,6 @@
             "REQUIRES": [{"PATH": ["Options", "WriteDetailedXML"], "VALUE": true}, {"PATH": ["Analysis", "WriteEigenvectors"], "VALUE": true}],
             "DESCRIPTION": "Programme séparé : tracé des orbitales moléculaires et densités de charge sur grille (fichiers cube).",
             "PAGE": 155
-        },
-
-        "SETUPGEOM": {
-            "KEYWORD": null,
-            "BINARY": "setupgeom",
-            "TARGET": "EXTERNAL_PROGRAM",
-            "DESCRIPTION": "Programme séparé : préparation/validation d'une géométrie pour un calcul de transport.",
-            "PAGE": 163
         }
     },
 
@@ -462,7 +468,7 @@
                 "ThirdOrder": {"TYPE": "FLAG", "DEFAULT": false, "CONDITION": "SCC = Yes"},
                 "ThirdOrderFull": {"TYPE": "FLAG", "DEFAULT": false, "CONDITION": "SCC = Yes"},
                 "HubbardDerivs": {"TYPE": "BLOCK", "CONDITION": "ThirdOrder(Full) = Yes", "DESCRIPTION": "Dérivées de Hubbard par espèce, ex : { O = -0.1575 H = -0.1857 }"},
-                "Charge": {"TYPE": "REAL", "DEFAULT": 0.0, "DESCRIPTION": "Charge totale (négatif = excès d'électrons)."},
+                "Charge": {"TYPE": "REAL", "DEFAULT": 0.0, "DESCRIPTION": "Charge totale (négatif = excès d'électrons). DFTB+ n'a pas de mot-clé de multiplicité : le spin se déclare par SPIN_POLARISATION, Colinear { UnpairedElectrons }."},
                 "MaxAngularMomentum": {"TYPE": "BLOCK", "MANDATORY": true, "DESCRIPTION": "Moment angulaire max par espèce : s, p, d, f. Bloc SelectedShells{} pour les bases étendues."},
                 "EwaldParameter": {"TYPE": "REAL", "DEFAULT": 0.0, "CONDITION": "Periodic = Yes, SCC = Yes", "DESCRIPTION": "0 ou négatif = détermination automatique (recommandé)."},
                 "EwaldTolerance": {"TYPE": "REAL", "DEFAULT": 1e-9, "CONDITION": "Periodic = Yes, SCC = Yes"},
@@ -509,16 +515,6 @@
             },
             "DESCRIPTION": "Hamiltonien tight-binding étendu, délégué à la bibliothèque tblite.",
             "PAGE": 38
-        },
-
-        "EXTERNAL_ASI": {
-            "KEYWORD": "ASI",
-            "PATH": ["Hamiltonian", "ASI"],
-            "TYPE": "BLOCK",
-            "REQUIRES_BUILD": "API",
-            "LIMITATIONS": ["Pas de forces si le modèle est modifié", "Pas de modèles auto-cohérents"],
-            "DESCRIPTION": "Interface Atomic Simulation Interface : un code externe lit ou remplace H, S ou la matrice densité.",
-            "PAGE": 39
         },
 
         "EXCITED_STATE": {
@@ -811,8 +807,8 @@
             "PATH": ["Hamiltonian", "DFTB", "OrbitalPotential"],
             "CANONICAL": "HUBBARD_U",
             "CONDITION": "SpinPolarisation != {}",
-            "VARIANTS": {"FLL": {"KEYWORD": "FLL", "CANONICAL": "FLL"}, "pSIC": {"KEYWORD": "pSIC"}},
-            "DESCRIPTION": "Contributions dépendantes de l'orbitale (DFT+U / LDA+U type FLL ou pSIC).",
+            "VARIANTS": {"FLL": {"KEYWORD": "FLL", "CANONICAL": "FLL"}},
+            "DESCRIPTION": "Contributions dépendantes de l'orbitale (DFT+U / LDA+U de type FLL).",
             "PAGE": 57
         },
 
@@ -939,6 +935,7 @@
 
     "OUTPUT": {
         "FILES": {
+            "dftb.out": {"FORMAT": "TEXT", "CONTENT": ["log", "scc_convergence", "geometry_steps"], "DESCRIPTION": "Sortie standard du programme, redirigée par AMAC (stdout_file)."},
             "detailed.out": {"FORMAT": "TEXT", "CONTENT": ["total_energy", "mermin_free_energy", "band_energy", "repulsive_energy", "dispersion_energy", "mulliken_charges", "forces", "dipole_moment", "stress", "fermi_level"], "PAGE": 111},
             "results.tag": {"FORMAT": "TAGGED", "CONTENT": ["total_energy", "forces", "stress", "eigenvalues", "charges", "hessian"], "MACHINE_READABLE": true, "PAGE": 112},
             "detailed.xml": {"FORMAT": "XML", "CONDITION": "WriteDetailedXML = Yes"},

@@ -38,25 +38,27 @@ example 03 come from it and pass its validation (`TIGHT_BINDING` / `DFTB2`,
 
 ### Handler packages and handlers
 
-The packages exist (`amac.assets.orca`, `gaussian`, `dftbplus`, `demonnano`) but
-expose no handler yet; `amac.assets.pyscf` does not exist. The handler names follow
-the common names listed in the main README ("Adding a software").
+`amac.assets.dftbplus` exposes its handlers; the other packages exist
+(`amac.assets.orca`, `gaussian`, `demonnano`) but expose none yet, and
+`amac.assets.pyscf` does not exist. The handler names follow the common names
+listed in the main README ("Adding a software").
 
 | Package | Handlers | Notes |
 |---|---|---|
 | `from amac.assets import orca` | `energy`, `forces`, `dipole`, `charges`, `final_geometry`, `frequencies`, `hessian`, `opi_output` | `final_geometry` with `modules=("GEOMETRY_OPTIMISATION",)`, `frequencies` with `modules=("FREQ",)`, `hessian` with `requires_files=("*.hess",)`, `opi_output` with `drivers=("opi",)` |
 | `from amac.assets import gaussian` | `energy`, `dipole`, `final_geometry` | |
-| `from amac.assets import dftbplus` | `energy`, `forces`, `charges` | Read `results.tag` / `detailed.out` |
+| `from amac.assets import dftbplus` | `energy`, `forces`, `charges`, `dipole`, `orbital_energies`, `final_geometry` | Read `results.tag` and `detailed.out`; `final_geometry` with `modules=("GEOMETRY_OPTIMISATION", …)` |
 | `from amac.assets import demonnano` | `energy`, `forces` | |
 | `from amac.assets import pyscf` | `energy`, `mo_energies` | The mean-field object in `ctx.objects["mf"]` |
 
-Handlers return the values in the units of each program (Hartree for ORCA,
-Gaussian, DFTB+; cm-1 for frequencies): unit conversion is not decided yet.
+The DFTB+ handlers return ASE units (eV, eV/Å, e·Å), while its parser keeps the
+units of the program (Hartree, Bohr). The other packages, still to be written,
+follow the same rule.
 
 ### Methods, modules and parameters (ORCA, Gaussian, deMonNano, PySCF)
 
 - Methods: `DFT` with `method_args={"variant": "PBE0" | "B3LYP" | "wB97X-D" | "r2SCAN-3c", "Charge": ..., "Multiplicity": ...}`,
-  modelled on the dummy `doc.json`; `TIGHT_BINDING` / `DFTB2` for deMonNano.
+  modelled on the sample schema of the tests (`test/fixtures/schema.json`); `TIGHT_BINDING` / `DFTB2` for deMonNano.
 - Modules: `SINGLE_POINT`, `OPT` (alias of `GEOMETRY_OPTIMISATION`) with
   `module_args={"Convergence": "Tight"}`, `FREQ` (alias used by DFTB+ for
   `SECOND_DERIVATIVES`).

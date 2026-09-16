@@ -1,0 +1,8 @@
+{
+    "ID": "FREQUENCIES",
+    "ALIASES": [
+        "FREQ",
+        "VIBRATIONAL_ANALYSIS"
+    ],
+    "DESCRIPTION": "Hessienne, modes normaux, intensités et thermochimie."
+}

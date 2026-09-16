@@ -6,7 +6,6 @@ from pathlib import Path
 import pytest
 
 import amac
-from amac.assets._dummy.dummy import DummySoftware
 from amac.exceptions import ValidationError
 from amac.parameter.composer import translate
 from amac.parameter.parameters import CalculationSpec
@@ -14,12 +13,13 @@ from amac.parameter.schema import load
 from amac.parameter.validator import validate
 
 DFTBPLUS_DOC = Path(amac.__file__).parent / "assets" / "dftbplus" / "doc.json"
+SCHEMA_DOC = Path(__file__).parent / "fixtures" / "schema.json"
 FOLDING = [[4, 0, 0], [0, 4, 0], [0, 0, 4], [0.5, 0.5, 0.5]]
 
 
 @pytest.fixture
 def dummy():
-    return load(DummySoftware.DOC)
+    return load(SCHEMA_DOC)
 
 
 @pytest.fixture

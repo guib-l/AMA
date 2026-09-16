@@ -1,0 +1,7 @@
+{
+    "ID": "POINT_CHARGES",
+    "ALIASES": [
+        "EXTERNAL_CHARGES"
+    ],
+    "DESCRIPTION": "Charges ponctuelles externes (plongement électrostatique QM/MM)."
+}

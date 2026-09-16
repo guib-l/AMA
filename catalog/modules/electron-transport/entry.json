@@ -1,0 +1,8 @@
+{
+    "ID": "ELECTRON_TRANSPORT",
+    "ALIASES": [
+        "NEGF",
+        "TRANSPORT"
+    ],
+    "DESCRIPTION": "Transport électronique par fonctions de Green hors équilibre."
+}

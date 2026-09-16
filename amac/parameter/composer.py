@@ -39,6 +39,22 @@ if TYPE_CHECKING:
 
 DEFAULT_BOOLEAN = ("true", "false")
 RESOURCE_KEYS = ("CPU", "RAM")
+_TREE_FORMAT = {
+    "ASSIGN": " = ",
+    "OPEN": "{",
+    "CLOSE": "}",
+    "PADDING": "  ",
+    "SEPARATOR": " ",
+}
+_KEYWORD_BLOCK_FORMAT = {
+    "INLINE": False,
+    "ASSIGN": " ",
+    "OPEN": "",
+    "CLOSE": "end",
+    "PADDING": "  ",
+    "SEPARATOR": " ",
+}
+_QUOTED_CHARACTERS = frozenset('{}=[]"#')
 
 type _Path = tuple[str, ...]
 type _Groups = list[tuple[Mapping[str, Any], _Path]]
@@ -246,16 +262,108 @@ class _PendingComposer(Composer):
         raise NotImplementedError(f"The {self.SYNTAX} composer is not implemented")
 
 
-class KeywordBlockComposer(_PendingComposer):
-    """Keyword line and blocks (ORCA, Gaussian)."""
+class _TextComposer(Composer):
+    """Syntax family writing one input file rendered from the tree."""
+
+    def compose(
+        self,
+        spec: CalculationSpec,
+        schema: Schema,
+        atoms: Any,
+        exec_spec: ExecutionSpec,
+    ) -> dict[str, str]:
+        """Return ``{INPUT.FILENAME: text}``, the text given by :meth:`render`.
+
+        ``atoms`` is not used: software subclasses add the geometry by overriding
+        this method or :meth:`render`.
+        """
+        tree = self.build_tree(spec, schema, exec_spec)
+        return {schema.input["FILENAME"]: self.render(tree)}
+
+    @abstractmethod
+    def render(self, tree: InputTree) -> str:
+        """Return the text of the input file, without modifying ``tree``."""
+
+
+class KeywordBlockComposer(_TextComposer):
+    """Keyword line and blocks (ORCA, Gaussian).
+
+    Attributes:
+        KEYWORD_PREFIX: Start of the keyword line, set by software subclasses, e.g.
+            ``"!"`` for ORCA or ``"#p"`` for Gaussian.
+    """
 
     SYNTAX = "KEYWORD_BLOCK"
+    KEYWORD_PREFIX: ClassVar[str] = ""
+
+    def render(self, tree: InputTree) -> str:
+        """Return the keyword line, the ``raw`` lines, then the other nodes.
+
+        The keyword line holds ``tree.keywords`` then the values of the top-level
+        nodes whose format has ``INLINE`` true. The other top-level nodes are
+        written ``Name value``, or as a block closed by ``CLOSE`` when they have
+        children. A ``raw`` dict is merged into a copy of the tree first.
+
+        Args:
+            tree: Tree to render.
+
+        Returns:
+            The text of the input file.
+
+        Raises:
+            ValidationError: If a ``raw`` dict conflicts with a value of the tree.
+            ValueError: If an ``INLINE`` node has children.
+            TypeError: If ``raw`` has an unsupported type.
+        """
+        tree, raw_lines = _apply_raw(tree)
+        words = list(tree.keywords)
+        blocks: list[str] = []
+        for name, node in tree.nodes.items():
+            fmt = _KEYWORD_BLOCK_FORMAT | node.format
+            if not fmt["INLINE"]:
+                blocks.extend(_block_lines(name, node, 0))
+            elif node.children:
+                raise ValueError(f"The INLINE node {name} cannot have children")
+            elif node.value is not None:
+                words.append(_keyword_value(node.value, fmt))
+        lines = []
+        if words:
+            separator = (_KEYWORD_BLOCK_FORMAT | tree.format)["SEPARATOR"]
+            prefix = f"{self.KEYWORD_PREFIX} " if self.KEYWORD_PREFIX else ""
+            lines.append(prefix + separator.join(words))
+        return _text([*lines, *raw_lines, *blocks])
 
 
-class TreeComposer(_PendingComposer):
+class TreeComposer(_TextComposer):
     """Hierarchical tree (DFTB+ HSD)."""
 
     SYNTAX = "TREE"
+
+    def render(self, tree: InputTree) -> str:
+        """Return the HSD text of the tree followed by the ``raw`` lines.
+
+        A node is written ``Name [unit] = value``. A node without value, or whose
+        value is a table, opens a block ``Name = { ... }``. A node with a value and
+        children writes ``Name = Value { ... }``, the block holding the content of
+        the child named ``Value`` (case-insensitive) then the other children. A
+        ``raw`` dict is merged into a copy of the tree first.
+
+        Args:
+            tree: Tree to render.
+
+        Returns:
+            The text of the input file.
+
+        Raises:
+            ValueError: If ``tree.keywords`` is not empty, the syntax having no
+                keyword line, or if a string containing ``"`` must be quoted.
+            ValidationError: If a ``raw`` dict conflicts with a value of the tree.
+            TypeError: If a value or ``raw`` has an unsupported type.
+        """
+        if tree.keywords:
+            raise ValueError(f"The TREE syntax cannot write keywords {tree.keywords}")
+        tree, raw_lines = _apply_raw(tree)
+        return _text([*_children_lines(tree.nodes, 0), *raw_lines])
 
 
 class NamelistComposer(_PendingComposer):
@@ -509,3 +617,146 @@ def _thaw(value: Any) -> Any:
             return [_thaw(item) for item in value]
         case _:
             return value
+
+
+def _apply_raw(tree: InputTree) -> tuple[InputTree, list[str]]:
+    """Return the tree to render and the ``raw`` lines to write as-is.
+
+    A ``raw`` dict is merged into a copy of the tree like :func:`translate` places
+    undescribed content; ``tree`` itself is never modified.
+    """
+    match tree.raw:
+        case None:
+            return tree, []
+        case str():
+            return tree, [tree.raw]
+        case list() if all(isinstance(line, str) for line in tree.raw):
+            return tree, list(tree.raw)
+        case Mapping():
+            merged = copy.deepcopy(tree)
+            for name, value in tree.raw.items():
+                _merge(merged, (name,), value)
+            return merged, []
+    raise TypeError(f"raw must be a str, a list of str or a dict, got {tree.raw!r}")
+
+
+def _merge(tree: InputTree, path: _Path, value: Any) -> None:
+    if not isinstance(path[-1], str):
+        raise TypeError(f"raw names must be str, got {path[-1]!r}")
+    node = _node(tree, path)
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            _merge(tree, (*path, key), item)
+    else:
+        _assign(node, value, path)
+
+
+def _text(lines: list[str]) -> str:
+    return "".join(f"{line}\n" for line in lines)
+
+
+def _block_lines(name: str, node: Node, depth: int) -> list[str]:
+    """Lines of a ``KEYWORD_BLOCK`` node: ``Name value`` or a block."""
+    fmt = _KEYWORD_BLOCK_FORMAT | node.format
+    pad = fmt["PADDING"] * depth
+    head = pad + name
+    if (unit := render_unit(node.unit, fmt)) is not None:
+        head = f"{head} {unit}"
+    if node.value is not None:
+        head += fmt["ASSIGN"] + _keyword_value(node.value, fmt)
+    if not node.children:
+        return [head]
+    lines = [f"{head} {fmt['OPEN']}" if fmt["OPEN"] else head]
+    for child_name, child in node.children.items():
+        lines.extend(_block_lines(child_name, child, depth + 1))
+    if fmt["CLOSE"]:
+        lines.append(pad + fmt["CLOSE"])
+    return lines
+
+
+def _keyword_value(value: Any, fmt: Mapping[str, Any]) -> str:
+    match value:
+        case bool():
+            return render_bool(value, fmt)
+        case list() | tuple():
+            return fmt["SEPARATOR"].join(_keyword_value(item, fmt) for item in value)
+        case _:
+            return str(value)
+
+
+def _children_lines(children: Mapping[str, Node], depth: int) -> list[str]:
+    return [
+        line
+        for name, node in children.items()
+        for line in _tree_lines(name, node, depth)
+    ]
+
+
+def _tree_lines(name: str, node: Node, depth: int) -> list[str]:
+    """Lines of a ``TREE`` node and of its children."""
+    fmt = _TREE_FORMAT | node.format
+    pad = fmt["PADDING"] * depth
+    head = pad + name
+    if (unit := render_unit(node.unit, fmt)) is not None:
+        head = f"{head} {unit}"
+    head += fmt["ASSIGN"]
+    if node.value is None or _is_table(node.value):
+        body = _content_lines(node, depth + 1)
+    elif not node.children:
+        return [head + _tree_value(node.value, fmt)]
+    else:
+        head += f"{_tree_value(node.value, fmt)} "
+        children = dict(node.children)
+        folded = node.value.casefold() if isinstance(node.value, str) else None
+        key = next((k for k in children if k.casefold() == folded), None)
+        body = _content_lines(children.pop(key), depth + 1) if key is not None else []
+        body += _children_lines(children, depth + 1)
+    if not body:
+        return [head + fmt["OPEN"] + fmt["CLOSE"]]
+    return [head + fmt["OPEN"], *body, pad + fmt["CLOSE"]]
+
+
+def _content_lines(node: Node, depth: int) -> list[str]:
+    """Lines of a ``TREE`` node inside a block: its value, then its children."""
+    fmt = _TREE_FORMAT | node.format
+    pad = fmt["PADDING"] * depth
+    if node.value is None:
+        rows = []
+    elif _is_table(node.value):
+        rows = [pad + _tree_value(row, fmt) for row in node.value]
+    else:
+        rows = [pad + _tree_value(node.value, fmt)]
+    return rows + _children_lines(node.children, depth)
+
+
+def _is_table(value: Any) -> bool:
+    return isinstance(value, list | tuple) and all(
+        isinstance(row, list | tuple) for row in value
+    )
+
+
+def _tree_value(value: Any, fmt: Mapping[str, Any]) -> str:
+    """Text of a scalar or of a flat list of scalars in the ``TREE`` syntax."""
+    if isinstance(value, list | tuple):
+        return fmt["SEPARATOR"].join(_tree_scalar(item, fmt) for item in value)
+    return _tree_scalar(value, fmt)
+
+
+def _tree_scalar(value: Any, fmt: Mapping[str, Any]) -> str:
+    match value:
+        case bool():
+            return render_bool(value, fmt)
+        case int() | float():
+            return str(value)
+        case str():
+            return _quote(value)
+    raise TypeError(f"Cannot write {value!r} in the TREE syntax")
+
+
+def _quote(text: str) -> str:
+    """Return a ``TREE`` string, quoted when empty or holding blanks or symbols."""
+    if text and not any(c.isspace() or c in _QUOTED_CHARACTERS for c in text):
+        return text
+    if '"' in text:
+        raise ValueError(f"Cannot quote a string containing '\"': {text!r}")
+    return f'"{text}"'

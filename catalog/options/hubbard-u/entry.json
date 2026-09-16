@@ -1,0 +1,20 @@
+{
+    "ID": "HUBBARD_U",
+    "ALIASES": [
+        "DFT+U",
+        "LDA+U"
+    ],
+    "DESCRIPTION": "Correction de Hubbard sur des orbitales localisées ; la variante est le terme de double comptage.",
+    "VARIANTS": {
+        "FLL": {
+            "ALIASES": [
+                "FULLY_LOCALISED_LIMIT"
+            ]
+        },
+        "AMF": {
+            "ALIASES": [
+                "AROUND_MEAN_FIELD"
+            ]
+        }
+    }
+}

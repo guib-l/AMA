@@ -39,6 +39,7 @@ def test_manifest_example_with_dummy(tmp_path):
         handlers=[_dummy.energy, _dummy.forces],
         cpu=2,
         workdir=tmp_path,
+        validate="off",
     )
     result = amac.run(water())
     assert result.success
@@ -75,8 +76,15 @@ def test_explicit_calc_wins_over_current(tmp_path):
         handlers=[_dummy.energy],
         workdir=tmp_path,
         label="current",
+        validate="off",
     )
-    explicit = AMAC(software="dummy", workdir=tmp_path, label="explicit", **PARAMETERS)
+    explicit = AMAC(
+        software="dummy",
+        workdir=tmp_path,
+        label="explicit",
+        validate="off",
+        **PARAMETERS,
+    )
     explicit.handler_properties(_dummy.energy)
     assert amac.run(water(), calc=explicit).context.directory.name == "explicit"
     assert amac.run(water()).context.directory.name == "current"
@@ -84,7 +92,11 @@ def test_explicit_calc_wins_over_current(tmp_path):
 
 def test_run_handlers_for_one_call_only(tmp_path):
     calc = amac.calculator(
-        PARAMETERS, platform="dummy", handlers=[_dummy.energy], workdir=tmp_path
+        PARAMETERS,
+        platform="dummy",
+        handlers=[_dummy.energy],
+        workdir=tmp_path,
+        validate="off",
     )
     result = amac.run(water(), handlers=[_dummy.forces], label="forces")
     assert result.properties.keys() == {"forces"}
@@ -98,7 +110,7 @@ def test_run_handlers_for_one_call_only(tmp_path):
 def test_configure_priorities(tmp_path):
     amac.configure(cpu=2, ram=1000, timeout=60)
     amac.configure(timeout=30)
-    amac.configure(software="DUMMY", cpu=3, driver="auto")
+    amac.configure(software="DUMMY", cpu=3, driver="auto", validate="off")
     calc = amac.calculator(PARAMETERS, platform="dummy", ram=500, workdir=tmp_path)
     assert (calc.exec_spec.cpu, calc.exec_spec.ram) == (3, 500)
     assert calc.exec_spec.timeout == pytest.approx(30.0, abs=1e-12)
@@ -110,27 +122,32 @@ def test_configure_priorities(tmp_path):
 def test_configure_does_not_affect_direct_amac(tmp_path):
     amac.configure(cpu=4)
     amac.configure(software="dummy", executable="/configured/python", driver="auto")
-    calc = AMAC(software="dummy", workdir=tmp_path, **PARAMETERS)
+    calc = AMAC(software="dummy", workdir=tmp_path, validate="off", **PARAMETERS)
     assert (calc.exec_spec.cpu, calc.exec_spec.executable) == (1, None)
     assert calc.driver.fallback is None
 
 
 def test_facade_executable_resolution(tmp_path, monkeypatch):
     monkeypatch.setenv("DUMMY_EXECUTABLE", "/env/python")
-    assert resolved_executable(amac.calculator(PARAMETERS, "dummy")) == "/env/python"
+    calc = amac.calculator(PARAMETERS, "dummy", validate="off")
+    assert resolved_executable(calc) == "/env/python"
     amac.configure(software="dummy", executable="/configured/python")
-    configured = amac.calculator(PARAMETERS, "dummy")
+    configured = amac.calculator(PARAMETERS, "dummy", validate="off")
     assert resolved_executable(configured) == "/configured/python"
-    explicit = amac.calculator(PARAMETERS, "dummy", executable="/explicit/python")
+    explicit = amac.calculator(
+        PARAMETERS, "dummy", validate="off", executable="/explicit/python"
+    )
     assert resolved_executable(explicit) == "/explicit/python"
 
 
 def test_direct_amac_executable_resolution(tmp_path, monkeypatch):
-    calc = AMAC(software="dummy", **PARAMETERS)
+    calc = AMAC(software="dummy", validate="off", **PARAMETERS)
     assert resolved_executable(calc) is None
     monkeypatch.setenv("DUMMY_EXECUTABLE", "/env/python")
     assert resolved_executable(calc) == "/env/python"
-    explicit = AMAC(software="dummy", executable="/explicit/python", **PARAMETERS)
+    explicit = AMAC(
+        software="dummy", executable="/explicit/python", validate="off", **PARAMETERS
+    )
     assert resolved_executable(explicit) == "/explicit/python"
 
 
@@ -167,9 +184,9 @@ def test_configure_errors(kwargs, error, match):
 def test_reset_configuration(tmp_path):
     amac.configure(cpu=4)
     amac.configure(software="dummy", executable="/configured/python")
-    current = amac.calculator(PARAMETERS, "dummy", workdir=tmp_path)
+    current = amac.calculator(PARAMETERS, "dummy", workdir=tmp_path, validate="off")
     amac.reset_configuration()
-    calc = amac.calculator(PARAMETERS, "dummy", workdir=tmp_path)
+    calc = amac.calculator(PARAMETERS, "dummy", workdir=tmp_path, validate="off")
     assert (calc.exec_spec.cpu, calc.exec_spec.executable) == (1, None)
     assert current.exec_spec.cpu == 4
 
@@ -186,7 +203,6 @@ def test_public_api():
         "SoftwareNotFoundError",
         "ValidationError",
         "__version__",
-        "available",
         "calculator",
         "configure",
         "load",

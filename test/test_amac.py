@@ -3,6 +3,7 @@
 import json
 import sys
 import warnings
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -15,9 +16,11 @@ from amac.assets._dummy import inprocess
 from amac.assets._dummy.dummy import DummySoftware
 from amac.engine import registry
 from amac.engine.context import Result
-from amac.exceptions import RunError, ValidationError
+from amac.exceptions import ConfigurationError, RunError, ValidationError
+from amac.parameter.composer import inject_resources, translate
 
 PYTHON = sys.executable
+SCHEMA_DOC = Path(__file__).parent / "fixtures" / "schema.json"
 
 
 def water() -> Atoms:
@@ -28,6 +31,7 @@ def water() -> Atoms:
 def make_calc(tmp_path, **kwargs) -> AMAC:
     arguments = {
         "software": "dummy",
+        "validate": "off",
         "method": "DFT",
         "method_args": {"variant": "PBE"},
         "parameters": {"BASIS": "sto-3g"},
@@ -81,6 +85,7 @@ def test_expectation_scenario_with_dummy(tmp_path):
     }
     calc = AMAC(
         software="dummy",
+        validate="off",
         method="DFT",
         module=None,
         **calculation_argument,
@@ -204,31 +209,48 @@ def test_unknown_arguments(tmp_path, kwargs, match):
 
 def test_validation_modes(tmp_path):
     invalid = {"method_args": {"variant": "PBE0"}}
-    with pytest.raises(ValidationError, match="variant"):
-        make_calc(tmp_path, **invalid)
-    with pytest.warns(UserWarning, match="variant"):
+    with pytest.raises(ValidationError, match="DUMMY has no doc.json"):
+        make_calc(tmp_path, validate="strict", **invalid)
+    with pytest.warns(UserWarning, match="DUMMY has no doc.json"):
         calc = make_calc(tmp_path, validate="warn", **invalid)
-    assert [issue.path for issue in calc.issues] == ["method_args.variant"]
+    assert (calc.issues, calc.validated) == ([], False)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        assert make_calc(tmp_path, validate="off", **invalid).issues == []
+        assert make_calc(tmp_path, **invalid).issues == []
     with pytest.raises(ValueError, match="validation mode"):
         make_calc(tmp_path, validate="lenient")
 
 
-def test_geometry_validation(tmp_path):
+def test_geometry_not_validated_without_doc(tmp_path):
     periodic = Atoms("H", cell=[5.0, 5.0, 5.0], pbc=True)
-    molecule_only = {"method_args": {"variant": "B3LYP"}}
-    calc = make_calc(tmp_path, **molecule_only)
-    with pytest.raises(ValidationError, match="MOLECULE only"):
-        calc.execute(periodic)
-    assert not (tmp_path / "amac").exists()
-    calc = make_calc(tmp_path, validate="warn", **molecule_only)
+    with pytest.warns(UserWarning, match="DUMMY has no doc.json"):
+        calc = make_calc(tmp_path, validate="warn")
     calc.handler_properties(_dummy.energy)
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
         assert calc.execute(periodic).success
-    assert any("MOLECULE only" in str(warning.message) for warning in caught)
+
+
+def test_check_environment_fails_at_creation(tmp_path, monkeypatch):
+    def incompatible(self):
+        raise ConfigurationError("DUMMY: missing library")
+
+    monkeypatch.setattr(DummySoftware, "check_environment", incompatible)
+    # "strict" would raise ValidationError (no doc.json) if validation came first.
+    with pytest.raises(ConfigurationError, match="missing library"):
+        make_calc(tmp_path, validate="strict")
+
+
+def test_input_tree_set_on_amac_path(tmp_path, monkeypatch):
+    # The in-process dummy runs without any executable, even the Python fallback.
+    monkeypatch.setattr(inprocess.DummyInProcess, "DOC", SCHEMA_DOC)
+    calc = make_calc(tmp_path, software="dummy-inprocess", cpu=2)
+    calc.handler_properties(inprocess.energy)
+    result = calc.execute(water())
+    assert (calc.driver.name, result.success) == ("amac", True)
+    expected = translate(calc.spec, calc.schema)
+    inject_resources(expected, calc.schema, result.context.exec_spec)
+    assert result.context.metadata["input_tree"] == expected
 
 
 @pytest.mark.parametrize(
@@ -256,10 +278,12 @@ def test_handler_properties_replaces_previous_handlers(tmp_path):
 
 
 def test_to_dict_from_dict(tmp_path):
-    calc = make_calc(tmp_path, cpu=2, label="calc", validate="warn", driver="auto")
+    with pytest.warns(UserWarning, match="DUMMY has no doc.json"):
+        calc = make_calc(tmp_path, cpu=2, label="calc", validate="warn", driver="auto")
     data = calc.to_dict()
     assert json.loads(json.dumps(data)) == data
-    clone = AMAC.from_dict(data)
+    with pytest.warns(UserWarning, match="DUMMY has no doc.json"):
+        clone = AMAC.from_dict(data)
     assert clone.to_dict() == data
     assert "software='DUMMY'" in repr(clone)
     with pytest.raises(ValueError, match="AMAC data must have the keys"):

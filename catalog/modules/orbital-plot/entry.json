@@ -1,0 +1,8 @@
+{
+    "ID": "ORBITAL_PLOT",
+    "ALIASES": [
+        "CUBE",
+        "WAVEPLOT"
+    ],
+    "DESCRIPTION": "Orbitales ou densités sur grille (fichiers cube)."
+}

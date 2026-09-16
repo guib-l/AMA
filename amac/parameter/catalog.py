@@ -1,16 +1,15 @@
 """Canonical catalog of AMAC and its links with the ``doc.json`` files.
 
-The catalog (``amac/assets/catalog/*.json``, format described in
-``amac/assets/CATALOG_SCHEMA.md``) names methods, modules and options independently
+The catalog (``catalog/<kind_dir>/<slug>/entry.json`` at the repository root, format
+described in ``CATALOG_SCHEMA.md``) names methods, modules and options independently
 of any software. A ``doc.json`` node points to a catalog entry with ``CANONICAL``:
-:func:`links` reads these pointers, :func:`availability` gathers them into
-cross-software equivalence tables and :func:`write_availability` writes them to the
-``available_*.json`` files (``python -m amac.assets.catalog``).
+:func:`links` reads these pointers.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from functools import lru_cache
@@ -22,14 +21,12 @@ from amac.engine.registry import available_software, get_software
 from amac.exceptions import ValidationError
 from amac.parameter.schema import Schema, _freeze, load, resolve_name
 
-CATALOG_DIR = Path(__file__).resolve().parents[1] / "assets" / "catalog"
+CATALOG_DIR = Path(__file__).resolve().parents[2] / "catalog"
 KINDS = ("METHOD", "MODULE", "OPTION")
+KIND_DIRS = {"methods": "METHOD", "modules": "MODULE", "options": "OPTION"}
 EQUIVALENCES = ("EXACT", "APPROX")
-OUTPUT_FILES = {
-    "METHOD": "available_methods.json",
-    "MODULE": "available_modules.json",
-    "OPTION": "available_options.json",
-}
+_ENTRY_FILE = "entry.json"
+_SLUG = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 _LINKED_SECTIONS = ("MODULES", "METHODS", "PARAMETERS")
 _LINK_KEYS = frozenset({"EQUIVALENCE", "NOTE", "SETS"})
 
@@ -44,9 +41,9 @@ class Entry:
         id: Canonical name, unique in the whole catalog (case ignored, aliases
             included).
         kind: ``"METHOD"``, ``"MODULE"`` or ``"OPTION"``.
-        parent: Id of the family or axis the entry is a variant of, ``None`` for a
-            top-level entry.
-        source: Stem of the catalog file declaring the entry, e.g. ``"functionals"``.
+        parent: Id of the enclosing entry, ``None`` for a top-level entry.
+        source: ``"<kind_dir>/<slug>"`` of the ``entry.json`` declaring the entry,
+            e.g. ``"methods/dft"``.
         data: Read-only content of the entry, ``VARIANTS`` included.
     """
 
@@ -67,9 +64,9 @@ class Catalog:
     """Read-only content of a catalog directory.
 
     Attributes:
-        directory: Resolved directory of the catalog files.
-        entries: Entries by id, in file then declaration order, each variant after
-            its parent.
+        directory: Resolved root directory of the catalog.
+        entries: Entries by id: kinds in ``KINDS`` order, slugs sorted
+            alphabetically, each variant after its parent in declaration order.
     """
 
     directory: Path
@@ -110,14 +107,16 @@ class Catalog:
         return tuple(entry for entry in self.entries.values() if entry.kind == kind)
 
     def children(self, entry_id: str) -> tuple[Entry, ...]:
-        """Return the variants of an entry, whatever file declares them.
+        """Return the direct variants of an entry, in declaration order.
 
         Raises:
             KeyError: If ``entry_id`` is not an id of the catalog.
         """
         if entry_id not in self.entries:
             raise KeyError(entry_id)
-        return tuple(entry for entry in self.entries.values() if entry.parent == entry_id)
+        return tuple(
+            entry for entry in self.entries.values() if entry.parent == entry_id
+        )
 
 
 @dataclass(frozen=True)
@@ -145,46 +144,66 @@ class Link:
 
 
 def load_catalog(directory: str | Path = CATALOG_DIR) -> Catalog:
-    """Load and check every ``*.json`` file of a catalog directory.
+    """Load and check every ``<kind_dir>/<slug>/entry.json`` of a catalog directory.
 
     Results are cached by resolved directory: the files are read once per process.
+    Files directly under the root or a kind directory are ignored.
 
     Args:
-        directory: Catalog directory, the one of the package by default.
+        directory: Root directory of the catalog, the one of the repository by
+            default.
 
     Returns:
         The read-only catalog.
 
     Raises:
-        FileNotFoundError: If the directory holds no JSON file.
-        ValidationError: If a file is not valid JSON or does not follow
-            ``CATALOG_SCHEMA.md`` (structure, duplicate names, unknown ``PARENT``
-            or ``ACCEPTS``, required variant missing).
+        FileNotFoundError: If the directory holds no ``entry.json``.
+        ValidationError: If the tree or an ``entry.json`` does not follow
+            ``CATALOG_SCHEMA.md`` (unknown kind directory, invalid slug, missing
+            ``entry.json``, invalid JSON or structure, duplicate names, unknown
+            ``ACCEPTS``, required variant missing).
     """
     return _load_catalog(Path(directory).resolve())
 
 
 @lru_cache(maxsize=None)
 def _load_catalog(directory: Path) -> Catalog:
-    paths = sorted(directory.glob("*.json"))
+    paths = _entry_paths(directory)
     if not paths:
-        raise FileNotFoundError(f"No catalog file in {directory}")
+        raise FileNotFoundError(f"No catalog {_ENTRY_FILE} in {directory}")
     entries: dict[str, Entry] = {}
-    parents: list[tuple[Path, str, str]] = []
-    for path in paths:
+    for kind_dir, path in paths:
         data = _read(path)
-        parent = data.get("PARENT")
-        if parent is not None:
-            parents.append((path, parent, data["KIND"]))
-        for key, node in data["ENTRIES"].items():
-            _collect(entries, key, node, data["KIND"], parent, path)
-    for path, parent, kind in parents:
-        owner = entries.get(parent)
-        if owner is None or owner.kind != kind:
-            raise ValidationError(f"{path}: PARENT {parent!r} is not a {kind} entry")
+        entry_id = data.pop("ID")
+        source = f"{kind_dir}/{path.parent.name}"
+        _collect(entries, entry_id, data, KIND_DIRS[kind_dir], None, source, path)
     _check_names(entries)
     _check_references(entries)
     return Catalog(directory, MappingProxyType(entries))
+
+
+def _entry_paths(directory: Path) -> list[tuple[str, Path]]:
+    subdirectories = sorted(path for path in directory.glob("*") if path.is_dir())
+    for path in subdirectories:
+        if path.name not in KIND_DIRS:
+            raise ValidationError(
+                f"{path}: not a catalog kind directory; expected one of "
+                f"{', '.join(KIND_DIRS)}"
+            )
+    found = []
+    for kind_dir in KIND_DIRS:
+        slugs = (path for path in (directory / kind_dir).glob("*") if path.is_dir())
+        for slug in sorted(slugs, key=lambda path: path.name):
+            if not _SLUG.fullmatch(slug.name):
+                raise ValidationError(
+                    f"{slug}: invalid slug, expected lowercase words of letters and "
+                    "digits separated by '-'"
+                )
+            path = slug / _ENTRY_FILE
+            if not path.is_file():
+                raise ValidationError(f"{slug}: missing {_ENTRY_FILE}")
+            found.append((kind_dir, path))
+    return found
 
 
 def _read(path: Path) -> dict[str, Any]:
@@ -195,16 +214,9 @@ def _read(path: Path) -> dict[str, Any]:
             raise ValidationError(f"{path} is not valid JSON: {err}") from err
     if not isinstance(data, dict):
         raise ValidationError(f"{path}: the top level must be a JSON object")
-    if missing := [key for key in ("CATALOG", "KIND", "ENTRIES") if key not in data]:
-        raise ValidationError(f"{path}: missing top-level keys: {', '.join(missing)}")
-    if data["KIND"] not in KINDS:
-        raise ValidationError(
-            f"{path}: KIND must be one of {', '.join(KINDS)}, got {data['KIND']!r}"
-        )
-    if not isinstance(data["ENTRIES"], dict):
-        raise ValidationError(f"{path}: ENTRIES must be a JSON object")
-    if not isinstance(data.get("PARENT", ""), str):
-        raise ValidationError(f"{path}: PARENT must be a str")
+    entry_id = data.get("ID")
+    if not isinstance(entry_id, str) or not entry_id:
+        raise ValidationError(f"{path}: ID must be a non-empty str")
     return data
 
 
@@ -214,13 +226,18 @@ def _collect(
     node: Any,
     kind: str,
     parent: str | None,
+    source: str,
     path: Path,
 ) -> None:
     where = f"{path}: {key}"
     if not isinstance(node, dict):
         raise ValidationError(f"{where} must be a JSON object")
+    if "ID" in node:
+        raise ValidationError(f"{where}: ID is only allowed at the top level")
     if key in entries:
-        raise ValidationError(f"{where} is already declared in {entries[key].source}.json")
+        raise ValidationError(
+            f"{where} is already declared in {entries[key].source}/{_ENTRY_FILE}"
+        )
     for field in ("ALIASES", "ACCEPTS"):
         value = node.get(field, [])
         if not isinstance(value, list) or not all(
@@ -232,9 +249,9 @@ def _collect(
     variants = node.get("VARIANTS", {})
     if not isinstance(variants, dict):
         raise ValidationError(f"{where}: VARIANTS must be a JSON object")
-    entries[key] = Entry(key, kind, parent, path.stem, _freeze(node))
+    entries[key] = Entry(key, kind, parent, source, _freeze(node))
     for name, variant in variants.items():
-        _collect(entries, name, variant, kind, key, path)
+        _collect(entries, name, variant, kind, key, source, path)
 
 
 def _check_names(entries: Mapping[str, Entry]) -> None:
@@ -244,8 +261,8 @@ def _check_names(entries: Mapping[str, Entry]) -> None:
             owner = owners.setdefault(name.casefold(), entry.id)
             if owner != entry.id:
                 raise ValidationError(
-                    f"{entry.source}.json: name {name!r} of {entry.id} is already "
-                    f"used by {owner}"
+                    f"{entry.source}/{_ENTRY_FILE}: name {name!r} of {entry.id} is "
+                    f"already used by {owner}"
                 )
 
 
@@ -255,14 +272,15 @@ def _check_references(entries: Mapping[str, Entry]) -> None:
             target = entries.get(axis)
             if target is None or target.kind != "OPTION" or target.parent is not None:
                 raise ValidationError(
-                    f"{entry.source}.json: {entry.id} ACCEPTS {axis!r}, which is not "
-                    "an option axis"
+                    f"{entry.source}/{_ENTRY_FILE}: {entry.id} ACCEPTS {axis!r}, "
+                    "which is not an option axis"
                 )
         if entry.data.get("VARIANT_REQUIRED") and not any(
             other.parent == entry.id for other in entries.values()
         ):
             raise ValidationError(
-                f"{entry.source}.json: {entry.id} requires a variant but has none"
+                f"{entry.source}/{_ENTRY_FILE}: {entry.id} requires a variant but "
+                "has none"
             )
 
 
@@ -273,7 +291,7 @@ def links(schema: Schema, catalog: Catalog | None = None) -> tuple[Link, ...]:
 
     Args:
         schema: Schema of the software.
-        catalog: Catalog to link to, the one of the package by default.
+        catalog: Catalog to link to, the one of the repository by default.
 
     Returns:
         One link per catalog id named by each ``CANONICAL``.
@@ -402,158 +420,6 @@ def documented_software() -> dict[str, Schema]:
         if all(known is not schema for known in schemas.values()):
             schemas[name] = schema
     return schemas
-
-
-def availability(
-    kind: str,
-    schemas: Mapping[str, Schema] | None = None,
-    catalog: Catalog | None = None,
-) -> dict[str, dict[str, tuple[Link, ...]]]:
-    """Return which software implements each catalog entry of a kind.
-
-    Args:
-        kind: ``"METHOD"``, ``"MODULE"`` or ``"OPTION"``.
-        schemas: Schemas by software name, :func:`documented_software` by default.
-        catalog: Catalog to use, the one of the package by default.
-
-    Returns:
-        For each entry of ``kind``, in catalog order, the links of each software in
-        the order of ``schemas``; an empty tuple means the software does not
-        implement the entry.
-
-    Raises:
-        ValueError: If ``kind`` is not one of ``KINDS``.
-        ValidationError: If a ``CANONICAL`` link is invalid.
-    """
-    catalog = load_catalog() if catalog is None else catalog
-    schemas = documented_software() if schemas is None else schemas
-    table = {entry.id: {name: [] for name in schemas} for entry in catalog.of_kind(kind)}
-    for name, schema in schemas.items():
-        for link in links(schema, catalog):
-            if link.canonical in table:
-                table[link.canonical][name].append(link)
-    return {
-        entry_id: {name: tuple(found) for name, found in row.items()}
-        for entry_id, row in table.items()
-    }
-
-
-def available(
-    name: str,
-    schemas: Mapping[str, Schema] | None = None,
-    catalog: Catalog | None = None,
-) -> dict[str, tuple[Link, ...]]:
-    """Return the implementations of a catalog entry in each software.
-
-    Args:
-        name: Id or alias of the entry, case ignored, e.g. ``"scc-dftb"``.
-        schemas: Schemas by software name, :func:`documented_software` by default.
-        catalog: Catalog to use, the one of the package by default.
-
-    Returns:
-        Links by software name; an empty tuple means the software does not
-        implement the entry.
-
-    Raises:
-        TypeError: If ``name`` is not a str.
-        ValidationError: If ``name`` designates no entry, or a link is invalid.
-    """
-    catalog = load_catalog() if catalog is None else catalog
-    entry = catalog.resolve(name)
-    return availability(entry.kind, schemas, catalog)[entry.id]
-
-
-def availability_document(
-    kind: str,
-    schemas: Mapping[str, Schema] | None = None,
-    catalog: Catalog | None = None,
-) -> dict[str, Any]:
-    """Return the JSON content of the equivalence table of a kind.
-
-    Args:
-        kind: ``"METHOD"``, ``"MODULE"`` or ``"OPTION"``.
-        schemas: Schemas by software name, :func:`documented_software` by default.
-        catalog: Catalog to use, the one of the package by default.
-
-    Returns:
-        ``KIND``, ``SOFTWARE`` (version of each ``doc.json``) and ``ENTRIES``: for
-        each entry, its ``PARENT`` and, per software, the list of its links or
-        ``None`` when the software does not implement it.
-
-    Raises:
-        ValueError: If ``kind`` is not one of ``KINDS``.
-        ValidationError: If a ``CANONICAL`` link is invalid.
-    """
-    catalog = load_catalog() if catalog is None else catalog
-    schemas = documented_software() if schemas is None else schemas
-    table = availability(kind, schemas, catalog)
-    return {
-        "KIND": kind,
-        "GENERATED_BY": "python -m amac.assets.catalog",
-        "SOFTWARE": {name: schema.data["VERSION"] for name, schema in schemas.items()},
-        "ENTRIES": {
-            entry_id: {
-                "PARENT": catalog.entries[entry_id].parent,
-                "SOFTWARE": {
-                    name: [_link_content(link) for link in found] or None
-                    for name, found in row.items()
-                },
-            }
-            for entry_id, row in table.items()
-        },
-    }
-
-
-def write_availability(
-    directory: str | Path = ".",
-    schemas: Mapping[str, Schema] | None = None,
-    catalog: Catalog | None = None,
-) -> list[Path]:
-    """Write the equivalence table of each kind, named after ``OUTPUT_FILES``.
-
-    Args:
-        directory: Existing output directory.
-        schemas: Schemas by software name, :func:`documented_software` by default.
-        catalog: Catalog to use, the one of the package by default.
-
-    Returns:
-        The written paths, in the order of ``OUTPUT_FILES``.
-
-    Raises:
-        ValidationError: If a ``CANONICAL`` link is invalid.
-    """
-    schemas = documented_software() if schemas is None else schemas
-    written = []
-    for kind, filename in OUTPUT_FILES.items():
-        path = Path(directory) / filename
-        document = availability_document(kind, schemas, catalog)
-        text = json.dumps(document, indent=2, ensure_ascii=False) + "\n"
-        path.write_text(text, encoding="utf-8")
-        written.append(path)
-    return written
-
-
-def _link_content(link: Link) -> dict[str, Any]:
-    content: dict[str, Any] = {
-        "LOCATION": "/".join(link.location),
-        "KEYWORD": link.keyword,
-        "EQUIVALENCE": link.equivalence,
-    }
-    if link.sets:
-        content["SETS"] = _thaw(link.sets)
-    if link.note is not None:
-        content["NOTE"] = link.note
-    return content
-
-
-def _thaw(value: Any) -> Any:
-    match value:
-        case Mapping():
-            return {key: _thaw(item) for key, item in value.items()}
-        case tuple():
-            return [_thaw(item) for item in value]
-        case _:
-            return value
 
 
 def _check_kind(kind: str) -> None:

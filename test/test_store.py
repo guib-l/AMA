@@ -50,6 +50,7 @@ def water() -> Atoms:
 def make_calc(tmp_path, **kwargs) -> AMAC:
     arguments = {
         "software": "dummy",
+        "validate": "off",
         "method": "DFT",
         "method_args": {"variant": "PBE"},
         "parameters": {"BASIS": "sto-3g"},

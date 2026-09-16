@@ -1,14 +1,15 @@
 """DFTB+ on a periodic silicon crystal: cell, pbc, k-points, charges and forces.
 
-Illustrative: requires the real software, their handlers and composers, not
-implemented yet.
+Illustrative: requires DFTB+ itself (its executable); its composer, parser and
+handlers exist.
 
 Method, module and parameter names come from ``amac/assets/dftbplus/doc.json``:
 the ``DFTB2`` variant imposes ``SCC = Yes`` (``SETS``), ``SLATER_KOSTER_FILES`` and
 ``KPOINTS`` are parameters with variants, and ``Temperature`` is a common argument of
 every ``FILLING`` choice. The ``PERIODIC`` rules are checked at ``execute()`` against
 ``atoms.pbc``: the transport module (alias ``NEGF``) only accepts periodic systems.
-Values are written in DFTB+ units (no conversion).
+Input values are written in atomic units (Hartree, Bohr), which the ``doc.json``
+declares; the handlers return ASE units (eV, eV/Å).
 """
 
 from pathlib import Path
@@ -69,8 +70,8 @@ def main() -> None:
 
     forces = np.asarray(result.properties["forces"])
     charges = np.asarray(result.properties["charges"])
-    print(f"Energy: {result.properties['energy']:.6f} Eh")
-    print(f"Max |F|: {np.abs(forces).max():.4e}, sum of forces: {forces.sum(axis=0)}")
+    print(f"Energy: {result.properties['energy']:.6f} eV")
+    print(f"Max |F|: {np.abs(forces).max():.4e} eV/A, sum: {forces.sum(axis=0)}")
     print(f"Mulliken charges: min {charges.min():+.4f}, max {charges.max():+.4f}")
 
     # Vérification PERIODIC : le transport (NEGF) exige une géométrie périodique.

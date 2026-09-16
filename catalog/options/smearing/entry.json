@@ -1,0 +1,26 @@
+{
+    "ID": "SMEARING",
+    "DESCRIPTION": "Occupation des niveaux à température électronique finie.",
+    "VARIANTS": {
+        "FERMI_DIRAC": {
+            "ALIASES": [
+                "FERMI"
+            ]
+        },
+        "GAUSSIAN_SMEARING": {
+            "ALIASES": [
+                "GAUSS"
+            ]
+        },
+        "METHFESSEL_PAXTON": {
+            "ALIASES": [
+                "M-P"
+            ]
+        },
+        "MARZARI_VANDERBILT": {
+            "ALIASES": [
+                "COLD_SMEARING"
+            ]
+        }
+    }
+}

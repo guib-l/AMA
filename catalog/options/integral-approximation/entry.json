@@ -1,0 +1,22 @@
+{
+    "ID": "INTEGRAL_APPROXIMATION",
+    "DESCRIPTION": "Approximation des intégrales biélectroniques.",
+    "VARIANTS": {
+        "RI-J": {
+            "ALIASES": [
+                "RI",
+                "DENSITY_FITTING"
+            ],
+            "DESCRIPTION": "Résolution de l'identité pour le terme de Coulomb."
+        },
+        "RI-JK": {
+            "ALIASES": [
+                "RIJK"
+            ],
+            "DESCRIPTION": "Résolution de l'identité pour Coulomb et échange."
+        },
+        "RIJCOSX": {
+            "DESCRIPTION": "RI pour Coulomb, chain-of-spheres pour l'échange."
+        }
+    }
+}

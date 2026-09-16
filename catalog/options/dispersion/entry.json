@@ -1,0 +1,62 @@
+{
+    "ID": "DISPERSION",
+    "DESCRIPTION": "Correction de dispersion (van der Waals).",
+    "VARIANTS": {
+        "D2": {
+            "ALIASES": [
+                "DFT-D2"
+            ]
+        },
+        "D3(0)": {
+            "ALIASES": [
+                "D3",
+                "D3ZERO",
+                "DFT-D3"
+            ],
+            "DESCRIPTION": "D3 à amortissement nul."
+        },
+        "D3(BJ)": {
+            "ALIASES": [
+                "D3BJ"
+            ],
+            "DESCRIPTION": "D3 à amortissement de Becke-Johnson."
+        },
+        "D3M(BJ)": {
+            "ALIASES": [
+                "D3MBJ"
+            ],
+            "DESCRIPTION": "D3(BJ) modifié (Smith et al.)."
+        },
+        "D4": {
+            "ALIASES": [
+                "DFT-D4"
+            ]
+        },
+        "TS": {
+            "ALIASES": [
+                "TKATCHENKO-SCHEFFLER"
+            ]
+        },
+        "MBD": {
+            "ALIASES": [
+                "MBD@RSSCS"
+            ],
+            "DESCRIPTION": "Dispersion many-body."
+        },
+        "VV10": {
+            "ALIASES": [
+                "NL"
+            ],
+            "DESCRIPTION": "Corrélation non locale de Vydrov et Van Voorhis."
+        },
+        "LENNARD_JONES": {
+            "ALIASES": [
+                "LJ"
+            ],
+            "DESCRIPTION": "Potentiel de paire de Lennard-Jones (paramètres UFF ou explicites)."
+        },
+        "SLATER_KIRKWOOD": {
+            "DESCRIPTION": "Modèle atomique polarisable de Slater-Kirkwood."
+        }
+    }
+}

@@ -1,0 +1,12 @@
+{
+    "ID": "LOCAL_CORRELATION",
+    "DESCRIPTION": "Approximation locale des méthodes corrélées.",
+    "VARIANTS": {
+        "DLPNO": {
+            "DESCRIPTION": "Domain-based local pair natural orbitals."
+        },
+        "LPNO": {
+            "DESCRIPTION": "Local pair natural orbitals."
+        }
+    }
+}

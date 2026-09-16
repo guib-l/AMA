@@ -1,0 +1,19 @@
+{
+    "ID": "SEMIEMPIRICAL",
+    "ALIASES": [
+        "NDDO"
+    ],
+    "VARIANT_REQUIRED": true,
+    "ACCEPTS": [
+        "REFERENCE",
+        "SOLVATION"
+    ],
+    "DESCRIPTION": "Méthodes semi-empiriques de type NDDO.",
+    "VARIANTS": {
+        "MNDO": {},
+        "AM1": {},
+        "PM3": {},
+        "PM6": {},
+        "PM7": {}
+    }
+}

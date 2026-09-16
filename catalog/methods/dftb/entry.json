@@ -1,0 +1,61 @@
+{
+    "ID": "DFTB",
+    "ALIASES": [
+        "TIGHT_BINDING_DFTB"
+    ],
+    "VARIANT_REQUIRED": true,
+    "ACCEPTS": [
+        "REFERENCE",
+        "DISPERSION",
+        "SOLVATION",
+        "EXCITED_STATES",
+        "SMEARING",
+        "KPOINTS",
+        "HUBBARD_U",
+        "SPIN_ORBIT_COUPLING",
+        "ELECTRIC_FIELD",
+        "POINT_CHARGES"
+    ],
+    "DESCRIPTION": "Density Functional Tight Binding, paramétré par des fichiers Slater-Koster.",
+    "VARIANTS": {
+        "DFTB1": {
+            "ALIASES": [
+                "NCC-DFTB",
+                "NON-SCC-DFTB",
+                "DFTB-1"
+            ],
+            "DESCRIPTION": "DFTB non auto-cohérent (premier ordre)."
+        },
+        "DFTB2": {
+            "ALIASES": [
+                "SCC-DFTB",
+                "DFTB-2"
+            ],
+            "DESCRIPTION": "DFTB auto-cohérent en charge (second ordre)."
+        },
+        "DFTB3": {
+            "ALIASES": [
+                "DFTB-3"
+            ],
+            "DESCRIPTION": "Troisième ordre complet, avec dérivées de Hubbard."
+        },
+        "MDFTB": {
+            "ALIASES": [
+                "MULTIPOLAR-DFTB"
+            ],
+            "DESCRIPTION": "Extension multipolaire (dipôles et quadrupôles sur site)."
+        },
+        "LC-DFTB": {
+            "ALIASES": [
+                "RANGE-SEPARATED-DFTB"
+            ],
+            "DESCRIPTION": "DFTB hybride séparé en portée (long-range corrected)."
+        },
+        "GLOBAL-HYBRID-DFTB": {
+            "DESCRIPTION": "DFTB hybride global : fraction statique d'échange de Fock."
+        },
+        "CAM-DFTB": {
+            "DESCRIPTION": "DFTB hybride de type Coulomb-attenuating method."
+        }
+    }
+}

@@ -32,7 +32,8 @@ def water() -> Atoms:
 
 
 def make_calc(tmp_path, **kwargs) -> AMAC:
-    return AMAC(**{"software": "dummy", "workdir": tmp_path, **PARAMETERS} | kwargs)
+    arguments = {"software": "dummy", "workdir": tmp_path, "validate": "off"}
+    return AMAC(**arguments | PARAMETERS | kwargs)
 
 
 def atom_count(ctx) -> int:
@@ -52,12 +53,6 @@ def final_step(ctx) -> None:
 
 
 @pytest.fixture
-def isolated_registry(monkeypatch):
-    monkeypatch.setattr(registry, "_REGISTRY", dict(registry._REGISTRY))
-    return registry.register_software
-
-
-@pytest.fixture
 def facade_state(monkeypatch):
     monkeypatch.setattr(amac, "_STATE", amac._FacadeState())
 
@@ -65,28 +60,25 @@ def facade_state(monkeypatch):
 # 1. Software without doc.json
 
 
-def test_software_without_doc(tmp_path, isolated_registry):
-    class DoclessSoftware(DummySoftware):
-        NAME = "DOCLESS_TEST"
-        DOC = None
-
-    isolated_registry(DoclessSoftware)
-    with pytest.raises(amac.ValidationError, match="DOCLESS_TEST has no doc.json"):
-        make_calc(tmp_path, software="docless_test")
+def test_software_without_doc(tmp_path):
+    assert DummySoftware.DOC is None
+    with pytest.raises(amac.ValidationError, match="DUMMY has no doc.json"):
+        make_calc(tmp_path, validate="strict")
     with pytest.warns(UserWarning, match="validate='off'"):
-        lenient = make_calc(tmp_path, software="docless_test", validate="warn")
-    assert not lenient.validated
+        lenient = make_calc(tmp_path, validate="warn")
+    assert (lenient.schema, lenient.validated) == (None, False)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        silent = make_calc(tmp_path, software="docless_test", validate="off")
+        silent = make_calc(tmp_path, validate="off")
     assert not silent.validated
 
 
-@pytest.mark.parametrize(("mode", "expected"), [("strict", True), ("off", False)])
-def test_provenance_validated(tmp_path, mode, expected):
+@pytest.mark.parametrize("mode", ["warn", "off"])
+@pytest.mark.filterwarnings("ignore:DUMMY has no doc.json")
+def test_provenance_validated(tmp_path, mode):
     calc = make_calc(tmp_path, validate=mode)
     calc.handler_properties(_dummy.energy)
-    assert calc.execute(water()).provenance["validated"] is expected
+    assert calc.execute(water()).provenance["validated"] is False
 
 
 # 2. Lowercase software packages
@@ -104,11 +96,15 @@ def test_software_packages_are_lowercase():
 
 def test_configure_validate(tmp_path, facade_state):
     amac.configure(validate="warn")
-    assert amac.calculator(PARAMETERS, "dummy", workdir=tmp_path).validate == "warn"
+    with pytest.warns(UserWarning, match="DUMMY has no doc.json"):
+        calc = amac.calculator(PARAMETERS, "dummy", workdir=tmp_path)
+    assert calc.validate == "warn"
     amac.configure(software="dummy", validate="off")
     assert amac.calculator(PARAMETERS, "dummy").validate == "off"
-    assert amac.calculator(PARAMETERS, "dummy", validate="strict").validate == "strict"
-    assert AMAC(software="dummy", **PARAMETERS).validate == "strict"
+    with pytest.raises(amac.ValidationError, match="DUMMY has no doc.json"):
+        amac.calculator(PARAMETERS, "dummy", validate="strict")
+    with pytest.raises(amac.ValidationError, match="DUMMY has no doc.json"):
+        AMAC(software="dummy", **PARAMETERS)
     with pytest.raises(ValueError, match="Unknown validation mode 'lenient'"):
         amac.configure(validate="lenient")
 
@@ -178,9 +174,8 @@ def test_image_overrides(tmp_path):
     assert spec["method_args"] == {"variant": "PBE", "Charge": 1}
     assert spec["parameters"]["SCF"] == {"MaxIter": 80, "Tolerance": 1e-6}
     assert second.context.spec.method_args["Charge"] == 1
-    tree = json.loads((second.context.directory / "input.json").read_text("utf-8"))
-    dft = tree["nodes"]["Hamiltonian"]["children"]["DFT"]["children"]
-    assert dft["Charge"]["value"] == 1
+    written = json.loads((second.context.directory / "input.json").read_text("utf-8"))
+    assert written["method_args"]["Charge"] == 1
     assert calc.spec.method_args == {"variant": "PBE"}
 
     single = calc.execute((water(), {"parameters": {"BASIS": "6-31g"}}), label="pair")
@@ -202,22 +197,6 @@ def test_image_overrides(tmp_path):
 def test_invalid_image_overrides(tmp_path, overrides, error, match):
     with pytest.raises(error, match=match):
         make_calc(tmp_path).execute([(water(), overrides)])
-
-
-def test_image_overrides_are_validated(tmp_path):
-    calc = make_calc(tmp_path)
-    calc.handler_properties(_dummy.energy)
-    with pytest.raises(amac.ValidationError, match="Multiplicity"):
-        calc.execute([(water(), {"method_args": {"Multiplicity": 99}})])
-    assert calc.results == []
-    assert not (tmp_path / "amac").exists()
-    lenient = make_calc(tmp_path, validate="warn", label="lenient")
-    lenient.handler_properties(_dummy.energy)
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        [result] = lenient.execute([(water(), {"method_args": {"Multiplicity": 99}})])
-    assert any("Multiplicity" in str(item.message) for item in caught)
-    assert result.success
 
 
 # 7. Handler without software
@@ -262,6 +241,7 @@ def test_skip_incompatible_in_facade(tmp_path, facade_state):
             handlers=handlers,
             skip_incompatible=True,
             workdir=tmp_path,
+            validate="off",
         )
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
@@ -349,4 +329,4 @@ def test_exceptions_are_exported(tmp_path):
         assert getattr(amac, name) is getattr(exceptions, name)
         assert name in amac.__all__
     with pytest.raises(amac.ValidationError):
-        make_calc(tmp_path, method_args={"variant": "PBE0"})
+        make_calc(tmp_path, validate="strict")

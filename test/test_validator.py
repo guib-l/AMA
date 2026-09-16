@@ -1,20 +1,21 @@
-"""Tests of amac.parameter.validator on the dummy doc.json."""
+"""Tests of amac.parameter.validator on the sample doc.json of test/fixtures."""
 
 import warnings
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
-from amac.assets._dummy.dummy import DummySoftware
 from amac.exceptions import ValidationError
 from amac.parameter.parameters import CalculationSpec
 from amac.parameter.schema import Schema, load
 from amac.parameter.validator import Issue, validate
 
+SCHEMA_DOC = Path(__file__).parent / "fixtures" / "schema.json"
 
 @pytest.fixture
 def schema() -> Schema:
-    return load(DummySoftware.DOC)
+    return load(SCHEMA_DOC)
 
 
 def make_spec(**overrides) -> CalculationSpec:

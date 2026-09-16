@@ -1,0 +1,26 @@
+{
+    "ID": "KPOINTS",
+    "DESCRIPTION": "Échantillonnage de la zone de Brillouin.",
+    "VARIANTS": {
+        "MONKHORST_PACK": {
+            "ALIASES": [
+                "MP_GRID"
+            ],
+            "DESCRIPTION": "Grille régulière, avec décalage éventuel."
+        },
+        "GAMMA_ONLY": {
+            "ALIASES": [
+                "GAMMA"
+            ]
+        },
+        "EXPLICIT_KPOINTS": {
+            "DESCRIPTION": "Liste de points et de poids."
+        },
+        "BAND_PATH": {
+            "ALIASES": [
+                "KLINES"
+            ],
+            "DESCRIPTION": "Chemin dans la zone de Brillouin pour une structure de bandes."
+        }
+    }
+}

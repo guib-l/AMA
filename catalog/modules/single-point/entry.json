@@ -1,0 +1,8 @@
+{
+    "ID": "SINGLE_POINT",
+    "ALIASES": [
+        "SP",
+        "ENERGY"
+    ],
+    "DESCRIPTION": "Calcul sur la géométrie d'entrée."
+}

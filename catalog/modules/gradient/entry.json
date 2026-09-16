@@ -1,0 +1,8 @@
+{
+    "ID": "GRADIENT",
+    "ALIASES": [
+        "FORCES",
+        "ENGRAD"
+    ],
+    "DESCRIPTION": "Énergie et gradient sur la géométrie d'entrée."
+}

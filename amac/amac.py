@@ -104,6 +104,9 @@ class AMAC:
         ValueError: If ``validate`` or the driver is unknown, or if an execution
             field is invalid.
         SoftwareNotFoundError: If the software is not registered.
+        ConfigurationError: If the environment cannot run the software (see
+            ``Software.check_environment``, called before the validation and the
+            selection of the driver).
         DriverUnavailableError: If the requested driver cannot be used.
         ValidationError: In ``"strict"`` mode, if the spec is invalid or the
             software has no ``doc.json``; also if the requested driver cannot use
@@ -139,6 +142,7 @@ class AMAC:
         self.validate = validate
         software_cls = get_software(platform if software is None else software)
         self.software = software_cls()
+        self.software.check_environment()
         self.schema: Schema | None = None
         self.issues: list[Issue] = []
         if software_cls.DOC is not None:
@@ -213,10 +217,10 @@ class AMAC:
         for an image with overrides, in the mode of the calculator), ``prepare``,
         ``run``, ``collect``, handlers, then ``finalize_run_directory`` (copy to
         ``outdir``, removal unless ``keep_files``). A phase in ``PHASES`` of the
-        selected driver goes through the driver, which finds the intermediate tree
-        of the spec in ``ctx.metadata["input_tree"]``; the other phases go through
-        the software. The effective spec is ``ctx.spec`` and
-        ``provenance["spec"]``.
+        selected driver goes through the driver; the other phases go through the
+        software. When the software has a ``doc.json``, the intermediate tree of
+        the spec is in ``ctx.metadata["input_tree"]``, whatever the driver. The
+        effective spec is ``ctx.spec`` and ``provenance["spec"]``.
 
         When a ``FILEIO`` software runs through the AMAC path, its executable is
         located once per call, before any directory is created (see
@@ -506,7 +510,7 @@ class AMAC:
             software=self.software,
             driver=self.driver.name,
         )
-        if self.driver.driver is not None and self.schema is not None:
+        if self.schema is not None:
             tree = translate(spec, self.schema)
             inject_resources(tree, self.schema, exec_spec)
             ctx.metadata[INPUT_TREE_KEY] = tree
@@ -631,6 +635,7 @@ def reprocess(result: Result, handlers: Iterable[Any]) -> Result:
         ValueError: If the provenance lacks ``software``, ``spec``, ``exec_spec`` or
             ``directory``.
         FileNotFoundError: If neither the directory nor its copy exists.
+        ConfigurationError: If the environment cannot run the software any more.
         DriverUnavailableError: If the requested driver cannot be used any more.
     """
     provenance = result.provenance

@@ -110,7 +110,7 @@ def test_handler_of_other_software_refused(other_software):
 
 
 def test_modules_compatibility(dummy_handlers):
-    @handler(software="DUMMY", modules=("OPT",))
+    @handler(software="DUMMY", modules=("GEOMETRY_OPTIMISATION",))
     def final_geometry(ctx):
         return None
 

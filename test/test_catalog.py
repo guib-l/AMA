@@ -2,29 +2,20 @@
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-import amac
-from amac.assets.catalog.__main__ import main
 from amac.exceptions import ValidationError
 from amac.parameter.catalog import (
     CATALOG_DIR,
     KINDS,
-    OUTPUT_FILES,
     Catalog,
-    availability,
-    availability_document,
-    available,
     documented_software,
     links,
     load_catalog,
-    write_availability,
 )
 from amac.parameter.schema import REQUIRED_KEYS, load
-
-ROOT = Path(__file__).resolve().parents[1]
-DFTBPLUS_DOC = Path(amac.__file__).parent / "assets" / "dftbplus" / "doc.json"
 
 
 @pytest.fixture
@@ -32,13 +23,11 @@ def catalog() -> Catalog:
     return load_catalog()
 
 
-@pytest.fixture
-def dftbplus():
-    return load(DFTBPLUS_DOC)
-
-
-def catalog_file(kind: str, entries: dict, **extra) -> dict:
-    return {"CATALOG": kind, "KIND": kind, "ENTRIES": entries} | extra
+def write_entry(root: Path, kind_dir: str, slug: str, content: Any) -> Path:
+    path = root / kind_dir / slug / "entry.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(content), encoding="utf-8")
+    return path
 
 
 def write_doc(directory: Path, **sections) -> Path:
@@ -59,7 +48,7 @@ def links_to(schema, canonical: str) -> list:
 
 def test_catalog_entries(catalog):
     b3lyp = catalog.entries["B3LYP"]
-    assert (b3lyp.kind, b3lyp.parent, b3lyp.source) == ("METHOD", "DFT", "functionals")
+    assert (b3lyp.kind, b3lyp.parent, b3lyp.source) == ("METHOD", "DFT", "methods/dft")
     assert catalog.entries["DFTB2"].parent == "DFTB"
     assert catalog.entries["D3(BJ)"].kind == "OPTION"
     assert catalog.entries["DISPERSION"].parent is None
@@ -105,54 +94,89 @@ def test_children_and_kinds(catalog):
         catalog.children("NOPE")
 
 
+def test_catalog_tree_order_and_source(tmp_path):
+    write_entry(tmp_path, "options", "dispersion", {"ID": "DISPERSION"})
+    write_entry(tmp_path, "methods", "hf", {"ID": "HF"})
+    write_entry(
+        tmp_path, "methods", "dft", {"ID": "DFT", "VARIANTS": {"PBE": {}, "B3LYP": {}}}
+    )
+    (tmp_path / "README.md").write_text("root", encoding="utf-8")
+    (tmp_path / "methods" / "README.md").write_text("kind", encoding="utf-8")
+    (tmp_path / "methods" / "dft" / "README.md").write_text("slug", encoding="utf-8")
+    entries = load_catalog(tmp_path).entries
+    assert list(entries) == ["DFT", "PBE", "B3LYP", "HF", "DISPERSION"]
+    assert (entries["PBE"].parent, entries["PBE"].source) == ("DFT", "methods/dft")
+    assert "ID" not in entries["DFT"].data
+
+
 @pytest.mark.parametrize(
     ("files", "message"),
     [
         (
-            {
-                "a": catalog_file("METHOD", {"HF": {}}),
-                "b": catalog_file("METHOD", {"HF": {}}),
-            },
-            "HF is already declared in a.json",
+            [("methods", "a", {"ID": "HF"}), ("methods", "b", {"ID": "HF"})],
+            "HF is already declared in methods/a/entry.json",
         ),
         (
-            {"a": catalog_file("METHOD", {"HF": {"ALIASES": ["pbe"]}, "DFT": {"VARIANTS": {"PBE": {}}}})},
-            "name 'PBE' of PBE is already used by HF",
+            [
+                ("methods", "hf", {"ID": "HF", "ALIASES": ["pbe"]}),
+                ("methods", "dft", {"ID": "DFT", "VARIANTS": {"PBE": {}}}),
+            ],
+            "name 'pbe' of HF is already used by PBE",
         ),
         (
-            {"a": catalog_file("METHOD", {"B3LYP": {}}, PARENT="DFT")},
-            "PARENT 'DFT' is not a METHOD entry",
-        ),
-        (
-            {"a": catalog_file("METHOD", {"HF": {"ACCEPTS": ["DISPERSION"]}})},
+            [("methods", "hf", {"ID": "HF", "ACCEPTS": ["DISPERSION"]})],
             "ACCEPTS 'DISPERSION', which is not an option axis",
         ),
         (
-            {"a": catalog_file("METHOD", {"DFT": {"VARIANT_REQUIRED": True}})},
+            [("methods", "dft", {"ID": "DFT", "VARIANT_REQUIRED": True})],
             "DFT requires a variant but has none",
         ),
-        ({"a": catalog_file("FUNCTIONAL", {})}, "KIND must be one of"),
         (
-            {"a": catalog_file("METHOD", {"HF": {"ALIASES": "RHF"}})},
+            [("methods", "hf", {"ID": "HF", "ALIASES": "RHF"})],
             "ALIASES must be a list",
         ),
-        ({"a": {"KIND": "METHOD", "ENTRIES": {}}}, "missing top-level keys: CATALOG"),
+        ([("methods", "hf", ["HF"])], "the top level must be a JSON object"),
+        ([("methods", "hf", {"ALIASES": ["RHF"]})], "ID must be a non-empty str"),
+        ([("methods", "hf", {"ID": ""})], "ID must be a non-empty str"),
+        ([("methods", "hf", {"ID": 1})], "ID must be a non-empty str"),
+        (
+            [("methods", "dft", {"ID": "DFT", "VARIANTS": {"PBE": {"ID": "PBE"}}})],
+            "PBE: ID is only allowed at the top level",
+        ),
+        ([("methods", "Hf", {"ID": "HF"})], "invalid slug"),
+        ([("methods", "hartree_fock", {"ID": "HF"})], "invalid slug"),
+        ([("methods", "hf-", {"ID": "HF"})], "invalid slug"),
+        (
+            [("functionals", "b3lyp", {"ID": "B3LYP"})],
+            "functionals: not a catalog kind directory",
+        ),
     ],
 )
 def test_invalid_catalog(tmp_path, files, message):
-    for stem, content in files.items():
-        (tmp_path / f"{stem}.json").write_text(json.dumps(content), encoding="utf-8")
+    for kind_dir, slug, content in files:
+        write_entry(tmp_path, kind_dir, slug, content)
     with pytest.raises(ValidationError, match=message):
         load_catalog(tmp_path)
 
 
+def test_catalog_slug_without_entry(tmp_path):
+    write_entry(tmp_path, "methods", "hf", {"ID": "HF"})
+    (tmp_path / "methods" / "dft").mkdir()
+    with pytest.raises(ValidationError, match="dft: missing entry.json"):
+        load_catalog(tmp_path)
+
+
 def test_catalog_without_file(tmp_path):
+    (tmp_path / "methods").mkdir()
+    (tmp_path / "README.md").write_text("catalog", encoding="utf-8")
     with pytest.raises(FileNotFoundError):
         load_catalog(tmp_path)
 
 
 def test_catalog_invalid_json(tmp_path):
-    (tmp_path / "a.json").write_text("{", encoding="utf-8")
+    path = tmp_path / "methods" / "hf" / "entry.json"
+    path.parent.mkdir(parents=True)
+    path.write_text("{", encoding="utf-8")
     with pytest.raises(ValidationError, match="not valid JSON"):
         load_catalog(tmp_path)
 
@@ -161,18 +185,48 @@ def test_catalog_invalid_json(tmp_path):
 # CANONICAL links
 
 
-def test_dftbplus_links(dftbplus):
-    (dftb2,) = links_to(dftbplus, "DFTB2")
+def test_dftbplus_links(tmp_path):
+    damping = {"TYPE": "CHOICE", "VALUES": ["BeckeJohnson", "ZeroDamping"]}
+    sections = {
+        "SOFTWARE": "DFTBP",
+        "MODULES": {
+            "SECOND_DERIVATIVES": {
+                "KEYWORD": "SecondDerivatives",
+                "CANONICAL": "HESSIAN",
+            },
+            "MODES": {"CANONICAL": {"FREQUENCIES": {"EQUIVALENCE": "APPROX"}}},
+        },
+        "METHODS": {
+            "TIGHT_BINDING": {
+                "KEYWORD": "DFTB",
+                "CANONICAL": "DFTB",
+                "VARIANTS": {"DFTB2": {"CANONICAL": "DFTB2"}},
+            }
+        },
+        "PARAMETERS": {
+            "DISPERSION": {
+                "ARGUMENTS": {
+                    "DftD3": {
+                        "ARGUMENTS": {"Damping": damping},
+                        "CANONICAL": {"D3(BJ)": {"SETS": {"Damping": "BeckeJohnson"}}},
+                    },
+                    "SimpleDftD3": {"CANONICAL": {"D3(BJ)": {"NOTE": "Internal."}}},
+                }
+            }
+        },
+    }
+    schema = load(write_doc(tmp_path, **sections))
+    (dftb2,) = links_to(schema, "DFTB2")
     assert dftb2.software == "DFTBP"
     assert dftb2.location == ("METHODS", "TIGHT_BINDING", "VARIANTS", "DFTB2")
     assert (dftb2.keyword, dftb2.equivalence, dftb2.note) == ("DFTB2", "EXACT", None)
-    (hessian,) = links_to(dftbplus, "HESSIAN")
+    (hessian,) = links_to(schema, "HESSIAN")
     assert hessian.keyword == "SecondDerivatives"
-    d3bj = links_to(dftbplus, "D3(BJ)")
+    d3bj = links_to(schema, "D3(BJ)")
     assert [link.keyword for link in d3bj] == ["DftD3", "SimpleDftD3"]
     assert dict(d3bj[0].sets) == {"Damping": "BeckeJohnson"}
-    assert d3bj[1].note
-    (modes,) = links_to(dftbplus, "FREQUENCIES")
+    assert (d3bj[0].note, d3bj[1].note) == (None, "Internal.")
+    (modes,) = links_to(schema, "FREQUENCIES")
     assert modes.equivalence == "APPROX"
 
 
@@ -247,62 +301,7 @@ def test_invalid_links(tmp_path, sections, message):
         links(schema)
 
 
-# ---------------------------------------------------------------------------
-# Availability
-
-
 def test_documented_software_skips_private_modules():
     schemas = documented_software()
     assert "DFTBP" in schemas
     assert not {"DUMMY", "DUMMY_INPROCESS"} & schemas.keys()
-
-
-def test_availability(dftbplus, catalog):
-    table = availability("METHOD", {"DFTBP": dftbplus})
-    assert [link.keyword for link in table["DFTB2"]["DFTBP"]] == ["DFTB2"]
-    assert table["B3LYP"] == {"DFTBP": ()}
-    assert list(table) == [entry.id for entry in catalog.of_kind("METHOD")]
-    with pytest.raises(ValueError, match="Unknown kind"):
-        availability("FUNCTIONAL", {})
-
-
-def test_available_accepts_aliases(dftbplus):
-    schemas = {"DFTBP": dftbplus}
-    (link,) = available("td-dftb", schemas)["DFTBP"]
-    assert link.keyword == "Casida"
-    assert available("ccsd(t)", schemas) == {"DFTBP": ()}
-    assert amac.available is available
-
-
-def test_availability_document(dftbplus):
-    document = availability_document("OPTION", {"DFTBP": dftbplus})
-    assert document["SOFTWARE"] == {"DFTBP": "25.1"}
-    d3 = document["ENTRIES"]["D3(0)"]
-    assert d3["PARENT"] == "DISPERSION"
-    assert d3["SOFTWARE"]["DFTBP"] == [
-        {
-            "LOCATION": "PARAMETERS/DISPERSION/ARGUMENTS/DftD3",
-            "KEYWORD": "DftD3",
-            "EQUIVALENCE": "EXACT",
-            "SETS": {"Damping": "ZeroDamping"},
-        }
-    ]
-    assert document["ENTRIES"]["PCM"]["SOFTWARE"] == {"DFTBP": None}
-
-
-@pytest.mark.parametrize("kind", KINDS)
-def test_generated_files_are_up_to_date(kind):
-    written = json.loads((ROOT / OUTPUT_FILES[kind]).read_text(encoding="utf-8"))
-    assert written == availability_document(kind), "run: python -m amac.assets.catalog"
-
-
-def test_write_availability(tmp_path, dftbplus):
-    paths = write_availability(tmp_path, {"DFTBP": dftbplus})
-    assert [path.name for path in paths] == list(OUTPUT_FILES.values())
-    assert json.loads(paths[0].read_text(encoding="utf-8"))["KIND"] == "METHOD"
-
-
-def test_command_line(tmp_path, capsys):
-    main([str(tmp_path)])
-    printed = capsys.readouterr().out.split()
-    assert printed == [str(tmp_path / name) for name in OUTPUT_FILES.values()]

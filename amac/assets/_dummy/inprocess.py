@@ -8,7 +8,6 @@ parameters and positions.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -69,14 +68,12 @@ class PairModel:
 class DummyInProcess(InProcessSoftware):
     """Test software evaluating :class:`PairModel` in the current process.
 
-    It shares the ``doc.json`` of the file-based dummy. :meth:`build` stores the
-    model in ``ctx.objects["model"]``, :meth:`compute` stores ``"energy"`` and
-    ``"forces"``.
+    It has no ``doc.json``. :meth:`build` stores the model in
+    ``ctx.objects["model"]``, :meth:`compute` stores ``"energy"`` and ``"forces"``.
     """
 
     NAME = "DUMMY_INPROCESS"
     ALIASES = ("dummy-inprocess",)
-    DOC = Path(__file__).with_name("doc.json")
 
     def build(self, ctx: RunContext) -> None:
         """Store the pair model in ``ctx.objects["model"]``."""

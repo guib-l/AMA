@@ -1,0 +1,20 @@
+{
+    "ID": "CONFIGURATION_INTERACTION",
+    "ALIASES": [
+        "CI"
+    ],
+    "VARIANT_REQUIRED": true,
+    "ACCEPTS": [
+        "REFERENCE",
+        "SOLVATION"
+    ],
+    "VARIANTS": {
+        "CIS": {},
+        "CISD": {},
+        "FCI": {
+            "ALIASES": [
+                "FULL-CI"
+            ]
+        }
+    }
+}

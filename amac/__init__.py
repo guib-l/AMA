@@ -43,7 +43,6 @@ from amac.exceptions import (
     ValidationError,
 )
 from amac.ios.store import load_results as load
-from amac.parameter.catalog import available
 from amac.parameter.parameters import CalculationSpec, ExecutionSpec
 from amac.parameter.validator import MODES
 
@@ -66,7 +65,6 @@ __all__ = [
     "SoftwareNotFoundError",
     "ValidationError",
     "__version__",
-    "available",
     "calculator",
     "configure",
     "load",

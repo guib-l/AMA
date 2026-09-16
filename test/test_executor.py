@@ -221,7 +221,7 @@ def test_dummy_prepare_run_collect(tmp_path):
     assert ctx.timings["run"] > 0
     assert ctx.files == {"output.json": tmp_path / "output.json"}
     output = json.loads(ctx.files["output.json"].read_text(encoding="utf-8"))
-    assert output == {"energy": -1.0, "forces": [], "keywords": ["PBE"]}
+    assert output == {"energy": -1.0, "forces": [], "method": "DFT"}
 
 
 def test_dummy_stdout_redirection(tmp_path):
