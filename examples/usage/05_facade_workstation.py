@@ -41,7 +41,9 @@ def configure_workstation() -> None:
         timeout=3600,
     )
     amac.configure(software="GAUSSIAN", executable="/opt/g16/g16", ram=32000)
-    amac.configure(software="deMonNano", executable="/opt/demon-nano/deMon")
+    # deMonNano runs in process through the deMonPy library, which starts this
+    # binary itself: the executable is still configured here, like the others.
+    amac.configure(software="deMonNano", executable="/opt/demon-nano/deMon.x")
 
 
 def main() -> None:
@@ -80,9 +82,21 @@ def main() -> None:
     print(amac.run(water).properties)
     print(amac.run(water, calc=orca_calc, label="water-orca-again").properties)
 
-    # deMonNano en DFTB, avec l'exécutable configuré plus haut.
+    # deMonNano en DFTB, avec l'exécutable configuré plus haut. Les fichiers
+    # Slater-Koster sont obligatoires, et les forces exigent la directive
+    # PRINT GRAD : AMAC n'ajoute rien de lui-même.
     amac.calculator(
-        parameters={"method": "TIGHT_BINDING", "method_args": {"variant": "DFTB2"}},
+        parameters={
+            "method": "DFTB",
+            "method_args": {"variant": "DFTB2"},
+            "parameters": {
+                "SLATER_KOSTER_FILES": {
+                    "PTYPE": "BIO",
+                    "SKFILE": "/opt/demon-nano/basis",
+                },
+                "OUTPUT_CONTROL": {"GRAD": True},
+            },
+        },
         platform="deMonNano",
         label="water-demon",
         handlers=[demonnano.energy, demonnano.forces],

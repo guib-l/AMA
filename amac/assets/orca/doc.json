@@ -1,0 +1,466 @@
+{
+    "SOFTWARE": "ORCA",
+    "VERSION": "6.1",
+    "SYNTAX": "KEYWORD_BLOCK",
+    "EXECUTION": ["FILEIO"],
+
+    "INPUT": {
+        "FILENAME": "orca.inp",
+        "BINARY": "orca",
+        "ARGUMENTS": ["orca.inp"],
+        "STDIN": false,
+        "ENVIRONMENT": {
+            "ORCA_EXECUTABLE": "Absolute path of the orca binary; parallel runs require it."
+        },
+        "FORMAT_DEFAULTS": {
+            "INLINE": false,
+            "ASSIGN": " ",
+            "OPEN": "",
+            "CLOSE": "end",
+            "PADDING": "  ",
+            "SEPARATOR": " ",
+            "BOOLEAN": ["true", "false"]
+        },
+        "RESOURCES": {"CPU": ["%pal", "nprocs"], "RAM": ["%maxcore"]},
+        "GEOMETRY": {
+            "BLOCK": "*",
+            "FORMAT": "xyz",
+            "UNIT": "Angstrom",
+            "DESCRIPTION": "Coordinates written by OrcaComposer as '* xyz <charge> <multiplicity>', one atom per line, closed by '*'. ORCA is molecular only: no lattice is written."
+        }
+    },
+
+    "MODULES": {
+        "SINGLE_POINT": {
+            "KEYWORD": "SP",
+            "ALIASES": ["SP", "ENERGY", "STATIC"],
+            "CANONICAL": "SINGLE_POINT",
+            "TARGET": "SIMPLE_INPUT",
+            "PERIODIC": "MOLECULE",
+            "DESCRIPTION": "Energy on the input geometry."
+        },
+        "GRADIENT": {
+            "KEYWORD": "EnGrad",
+            "ALIASES": ["FORCES", "ENGRAD"],
+            "CANONICAL": "GRADIENT",
+            "TARGET": "SIMPLE_INPUT",
+            "PERIODIC": "MOLECULE",
+            "DESCRIPTION": "Energy and gradient on the input geometry; the gradient is written to orca.engrad."
+        },
+        "GEOMETRY_OPTIMISATION": {
+            "KEYWORD": "Opt",
+            "ALIASES": ["OPT", "GeometryOptimization", "RELAX"],
+            "CANONICAL": "GEOMETRY_OPTIMISATION",
+            "TARGET": "SIMPLE_INPUT",
+            "PERIODIC": "MOLECULE",
+            "ARGUMENTS": {
+                "MaxIter": {"TYPE": "INTEGER", "PATH": ["%geom", "MaxIter"], "DESCRIPTION": "Maximum number of optimisation steps."},
+                "Constraints": {"TYPE": "BLOCK", "PATH": ["%geom", "Constraints"], "DESCRIPTION": "Frozen internal coordinates, e.g. { B 0 1 C }."}
+            },
+            "DESCRIPTION": "Minimisation of the energy with respect to the nuclear coordinates."
+        },
+        "TRANSITION_STATE_SEARCH": {
+            "KEYWORD": "OptTS",
+            "ALIASES": ["TS", "OPTTS"],
+            "CANONICAL": "TRANSITION_STATE_SEARCH",
+            "TARGET": "SIMPLE_INPUT",
+            "PERIODIC": "MOLECULE",
+            "ARGUMENTS": {
+                "TS_Mode": {"TYPE": "INTEGER", "PATH": ["%geom", "TS_Mode"], "DESCRIPTION": "Index of the mode followed uphill."},
+                "Calc_Hess": {"TYPE": "FLAG", "PATH": ["%geom", "Calc_Hess"], "DESCRIPTION": "Compute the exact Hessian before the search."}
+            },
+            "DESCRIPTION": "Search for a first-order saddle point (eigenvector following)."
+        },
+        "IRC": {
+            "KEYWORD": "IRC",
+            "CANONICAL": "IRC",
+            "TARGET": "SIMPLE_INPUT",
+            "PERIODIC": "MOLECULE",
+            "ARGUMENTS": {
+                "MaxIter": {"TYPE": "INTEGER", "PATH": ["%irc", "MaxIter"]},
+                "Direction": {"TYPE": "CHOICE", "PATH": ["%irc", "Direction"], "VALUES": ["both", "forward", "backward", "down"]}
+            },
+            "DESCRIPTION": "Intrinsic reaction coordinate, downhill from a transition state."
+        },
+        "NEB": {
+            "KEYWORD": "NEB",
+            "ALIASES": ["NEB-TS"],
+            "CANONICAL": "NEB",
+            "TARGET": "SIMPLE_INPUT",
+            "PERIODIC": "MOLECULE",
+            "ARGUMENTS": {
+                "NEB_End_XYZFile": {"TYPE": "STRING", "PATH": ["%neb", "NEB_End_XYZFile"], "DESCRIPTION": "File holding the product geometry."},
+                "NImages": {"TYPE": "INTEGER", "PATH": ["%neb", "NImages"], "DESCRIPTION": "Number of images between the two end points."}
+            },
+            "DESCRIPTION": "Nudged elastic band between two geometries."
+        },
+        "PES_SCAN": {
+            "KEYWORD": null,
+            "ALIASES": ["SCAN"],
+            "CANONICAL": "PES_SCAN",
+            "TARGET": ["%geom", "Scan"],
+            "PERIODIC": "MOLECULE",
+            "DESCRIPTION": "Scan of internal coordinates, e.g. module_args={'B 0 1': '= 1.0, 2.0, 10'}; add the Opt keyword for a relaxed scan."
+        },
+        "FREQUENCIES": {
+            "KEYWORD": "Freq",
+            "ALIASES": ["FREQ"],
+            "CANONICAL": "FREQUENCIES",
+            "TARGET": "SIMPLE_INPUT",
+            "PERIODIC": "MOLECULE",
+            "ARGUMENTS": {
+                "Temp": {"TYPE": "REAL", "PATH": ["%freq", "Temp"], "DESCRIPTION": "Temperature of the thermochemistry, K."},
+                "Scalfreq": {"TYPE": "REAL", "PATH": ["%freq", "Scalfreq"], "DESCRIPTION": "Scaling factor applied to the frequencies."}
+            },
+            "DESCRIPTION": "Analytic or numeric harmonic frequencies and thermochemistry."
+        },
+        "HESSIAN": {
+            "KEYWORD": "Freq",
+            "ALIASES": ["SECOND_DERIVATIVES"],
+            "CANONICAL": {
+                "HESSIAN": {
+                    "EQUIVALENCE": "APPROX",
+                    "NOTE": "ORCA has no Hessian-only run type: the matrix comes from a frequency run, in the orca.hess file."
+                }
+            },
+            "TARGET": "SIMPLE_INPUT",
+            "PERIODIC": "MOLECULE",
+            "DESCRIPTION": "Second derivatives of the energy, obtained from a frequency run."
+        },
+        "MOLECULAR_DYNAMICS": {
+            "KEYWORD": "MD",
+            "ALIASES": ["MD", "BOMD"],
+            "CANONICAL": "MOLECULAR_DYNAMICS",
+            "TARGET": "SIMPLE_INPUT",
+            "PERIODIC": "MOLECULE",
+            "ARGUMENTS": {
+                "Timestep": {"TYPE": "REAL", "PATH": ["%md", "Timestep"], "DESCRIPTION": "Time step, fs."},
+                "Initvel": {"TYPE": "REAL", "PATH": ["%md", "Initvel"], "DESCRIPTION": "Temperature of the initial velocities, K."},
+                "Thermostat": {"TYPE": "STRING", "PATH": ["%md", "Thermostat"]},
+                "Run": {"TYPE": "INTEGER", "PATH": ["%md", "Run"], "DESCRIPTION": "Number of steps."}
+            },
+            "DESCRIPTION": "Born-Oppenheimer molecular dynamics."
+        },
+        "ORBITAL_PLOT": {
+            "KEYWORD": null,
+            "BINARY": "orca_plot",
+            "CANONICAL": "ORBITAL_PLOT",
+            "TARGET": "EXTERNAL_PROGRAM",
+            "PERIODIC": "MOLECULE",
+            "DESCRIPTION": "Orbital and density grids, produced by the separate orca_plot program from orca.gbw. AMAC does not chain it yet: the module writes nothing in the input."
+        }
+    },
+
+    "METHODS": {
+        "HF": {
+            "KEYWORD": "HF",
+            "ALIASES": ["HARTREE_FOCK", "SCF"],
+            "CANONICAL": "HF",
+            "DESCRIPTION": "Hartree-Fock; the reference (RHF, UHF, ROHF) is the REFERENCE parameter."
+        },
+        "DFT": {
+            "KEYWORD": null,
+            "ALIASES": ["KS", "KOHN-SHAM"],
+            "CANONICAL": "DFT",
+            "VARIANTS": {
+                "SVWN5": {"KEYWORD": "VWN5", "CANONICAL": "SVWN5", "CLASS": "LDA", "DESCRIPTION": "Slater exchange with VWN5 correlation."},
+                "SPW92": {"KEYWORD": "PWLDA", "CANONICAL": "SPW92", "CLASS": "LDA", "DESCRIPTION": "Slater exchange with Perdew-Wang 92 correlation."},
+                "PBE": {"KEYWORD": "PBE", "CANONICAL": "PBE", "CLASS": "GGA"},
+                "BLYP": {"KEYWORD": "BLYP", "CANONICAL": "BLYP", "CLASS": "GGA"},
+                "BP86": {"KEYWORD": "BP86", "CANONICAL": "BP86", "CLASS": "GGA"},
+                "PW91": {"KEYWORD": "PW91", "CANONICAL": "PW91", "CLASS": "GGA"},
+                "TPSS": {"KEYWORD": "TPSS", "CANONICAL": "TPSS", "CLASS": "META_GGA"},
+                "SCAN": {"KEYWORD": "SCAN", "CANONICAL": "SCAN", "CLASS": "META_GGA"},
+                "r2SCAN": {"KEYWORD": "r2SCAN", "CANONICAL": "r2SCAN", "CLASS": "META_GGA"},
+                "B3LYP": {
+                    "KEYWORD": "B3LYP/G",
+                    "CANONICAL": "B3LYP",
+                    "CLASS": "HYBRID_GGA",
+                    "EXX": 0.2,
+                    "DESCRIPTION": "B3LYP with the VWN3 local component, the definition of the catalog; written B3LYP/G in ORCA."
+                },
+                "B3LYP5": {
+                    "KEYWORD": "B3LYP",
+                    "CANONICAL": "B3LYP5",
+                    "CLASS": "HYBRID_GGA",
+                    "EXX": 0.2,
+                    "DESCRIPTION": "B3LYP with the VWN5 local component, which the bare B3LYP keyword of ORCA selects."
+                },
+                "B3PW91": {"KEYWORD": "B3PW91", "CANONICAL": "B3PW91", "CLASS": "HYBRID_GGA", "EXX": 0.2},
+                "PBE0": {"KEYWORD": "PBE0", "CANONICAL": "PBE0", "CLASS": "HYBRID_GGA", "EXX": 0.25},
+                "TPSSh": {"KEYWORD": "TPSSh", "CANONICAL": "TPSSh", "CLASS": "HYBRID_META_GGA", "EXX": 0.1},
+                "M06": {"KEYWORD": "M06", "CANONICAL": "M06", "CLASS": "HYBRID_META_GGA"},
+                "M06-2X": {"KEYWORD": "M062X", "ALIASES": ["M06-2X"], "CANONICAL": "M06-2X", "CLASS": "HYBRID_META_GGA"},
+                "CAM-B3LYP": {"KEYWORD": "CAM-B3LYP", "CANONICAL": "CAM-B3LYP", "CLASS": "RANGE_SEPARATED"},
+                "wB97X-V": {"KEYWORD": "wB97X-V", "CANONICAL": "wB97X-V", "CLASS": "RANGE_SEPARATED"},
+                "B2PLYP": {"KEYWORD": "B2PLYP", "CANONICAL": "B2PLYP", "CLASS": "DOUBLE_HYBRID"}
+            },
+            "DESCRIPTION": "Density functional theory; the functional is the variant."
+        },
+        "MOLLER_PLESSET": {
+            "KEYWORD": null,
+            "ALIASES": ["MP", "MP2"],
+            "CANONICAL": "MOLLER_PLESSET",
+            "VARIANTS": {
+                "MP2": {"KEYWORD": "MP2", "CANONICAL": "MP2"},
+                "SCS-MP2": {"KEYWORD": "SCS-MP2", "CANONICAL": "SCS-MP2"},
+                "SOS-MP2": {"KEYWORD": "SOS-MP2", "CANONICAL": "SOS-MP2"}
+            },
+            "ARGUMENTS": {
+                "MaxCore": {"TYPE": "INTEGER", "PATH": ["%mp2", "MaxCore"], "DESCRIPTION": "Memory of the MP2 module, MB."},
+                "Density": {"TYPE": "CHOICE", "PATH": ["%mp2", "Density"], "VALUES": ["none", "unrelaxed", "relaxed"]}
+            },
+            "DESCRIPTION": "Moller-Plesset perturbation theory."
+        },
+        "COUPLED_CLUSTER": {
+            "KEYWORD": null,
+            "ALIASES": ["CC"],
+            "CANONICAL": "COUPLED_CLUSTER",
+            "VARIANTS": {
+                "CCSD": {"KEYWORD": "CCSD", "CANONICAL": "CCSD"},
+                "CCSD(T)": {"KEYWORD": "CCSD(T)", "CANONICAL": "CCSD(T)"},
+                "QCISD": {"KEYWORD": "QCISD", "CANONICAL": "QCISD"},
+                "QCISD(T)": {"KEYWORD": "QCISD(T)", "CANONICAL": "QCISD(T)"},
+                "EOM-CCSD": {"KEYWORD": "EOM-CCSD", "CANONICAL": "EOM-CCSD"}
+            },
+            "ARGUMENTS": {
+                "MaxCore": {"TYPE": "INTEGER", "PATH": ["%mdci", "MaxCore"], "DESCRIPTION": "Memory of the correlation module, MB."},
+                "NRoots": {"TYPE": "INTEGER", "PATH": ["%mdci", "NRoots"], "DESCRIPTION": "Number of EOM-CCSD roots."}
+            },
+            "DESCRIPTION": "Coupled cluster. The DLPNO approximations are not exposed: in ORCA they prefix the method keyword (DLPNO-CCSD(T)) and are reached with raw."
+        },
+        "CONFIGURATION_INTERACTION": {
+            "KEYWORD": null,
+            "ALIASES": ["CI"],
+            "CANONICAL": "CONFIGURATION_INTERACTION",
+            "VARIANTS": {
+                "CIS": {"KEYWORD": "CIS", "CANONICAL": "CIS"}
+            },
+            "DESCRIPTION": "Configuration interaction."
+        },
+        "MULTIREFERENCE": {
+            "KEYWORD": null,
+            "ALIASES": ["MR", "CAS"],
+            "CANONICAL": "MULTIREFERENCE",
+            "VARIANTS": {
+                "CASSCF": {"KEYWORD": "CASSCF", "CANONICAL": "CASSCF"},
+                "CASPT2": {"KEYWORD": "CASPT2", "CANONICAL": "CASPT2"},
+                "NEVPT2": {"KEYWORD": "NEVPT2", "CANONICAL": "NEVPT2"},
+                "MRCI": {"KEYWORD": "MRCI", "CANONICAL": "MRCI"}
+            },
+            "ARGUMENTS": {
+                "NEl": {"TYPE": "INTEGER", "PATH": ["%casscf", "nel"], "DESCRIPTION": "Electrons of the active space."},
+                "NOrb": {"TYPE": "INTEGER", "PATH": ["%casscf", "norb"], "DESCRIPTION": "Orbitals of the active space."},
+                "Mult": {"TYPE": "LIST", "SUBTYPE": "INTEGER", "PATH": ["%casscf", "mult"], "DESCRIPTION": "Multiplicities of the computed states."},
+                "NRoots": {"TYPE": "LIST", "SUBTYPE": "INTEGER", "PATH": ["%casscf", "nroots"], "DESCRIPTION": "Roots per multiplicity."}
+            },
+            "DESCRIPTION": "Multireference methods built on a CASSCF reference; the active space is given by NEl and NOrb."
+        },
+        "XTB": {
+            "KEYWORD": null,
+            "ALIASES": ["GFN-XTB"],
+            "CANONICAL": "XTB",
+            "VARIANTS": {
+                "GFN1-xTB": {"KEYWORD": "XTB1", "ALIASES": ["GFN1-XTB", "GFN1"], "CANONICAL": "GFN1-xTB"},
+                "GFN2-xTB": {"KEYWORD": "XTB2", "ALIASES": ["GFN2-XTB", "GFN2"], "CANONICAL": "GFN2-xTB"}
+            },
+            "DESCRIPTION": "Extended tight binding, run by the separate xtb program; its path is not configured by AMAC yet."
+        }
+    },
+
+    "PARAMETERS": {
+        "CHARGE": {
+            "TYPE": "INTEGER",
+            "PATH": ["*xyz", "Charge"],
+            "DEFAULT": 0,
+            "DESCRIPTION": "Total charge, written on the '* xyz' line by the composer, not as a block."
+        },
+        "MULTIPLICITY": {
+            "TYPE": "INTEGER",
+            "ALIASES": ["MULT", "SPIN_MULTIPLICITY"],
+            "PATH": ["*xyz", "Multiplicity"],
+            "DEFAULT": 1,
+            "RANGE": [1, 100],
+            "DESCRIPTION": "Spin multiplicity 2S+1, written on the '* xyz' line by the composer."
+        },
+        "BASIS": {
+            "TYPE": "STRING",
+            "ALIASES": ["BASIS_SET"],
+            "PATH": ["Basis"],
+            "FORMAT": {"INLINE": true},
+            "DESCRIPTION": "Basis set written on the keyword line, e.g. def2-TZVP."
+        },
+        "AUXILIARY_BASIS": {
+            "TYPE": "STRING",
+            "ALIASES": ["AUXBASIS"],
+            "PATH": ["AuxBasis"],
+            "FORMAT": {"INLINE": true},
+            "DESCRIPTION": "Auxiliary basis of the integral approximations, e.g. def2/J."
+        },
+        "REFERENCE": {
+            "TYPE": "CHOICE",
+            "PATH": ["Reference"],
+            "FORMAT": {"INLINE": true},
+            "ARGUMENTS": {
+                "RHF": {"TYPE": "FLAG", "CANONICAL": "RESTRICTED", "DESCRIPTION": "Closed-shell Hartree-Fock."},
+                "RKS": {"TYPE": "FLAG", "CANONICAL": "RESTRICTED", "DESCRIPTION": "Closed-shell Kohn-Sham."},
+                "UHF": {"TYPE": "FLAG", "CANONICAL": "UNRESTRICTED"},
+                "UKS": {"TYPE": "FLAG", "CANONICAL": "UNRESTRICTED"},
+                "ROHF": {"TYPE": "FLAG", "CANONICAL": "RESTRICTED_OPEN"},
+                "ROKS": {"TYPE": "FLAG", "CANONICAL": "RESTRICTED_OPEN"}
+            },
+            "DESCRIPTION": "Spin treatment of the reference determinant, written on the keyword line."
+        },
+        "INTEGRAL_APPROXIMATION": {
+            "TYPE": "CHOICE",
+            "ALIASES": ["RI"],
+            "PATH": ["Approximation"],
+            "FORMAT": {"INLINE": true},
+            "ARGUMENTS": {
+                "RI": {"TYPE": "FLAG", "CANONICAL": "RI-J", "DESCRIPTION": "Resolution of the identity on the Coulomb term."},
+                "RIJK": {"TYPE": "FLAG", "CANONICAL": "RI-JK", "DESCRIPTION": "Resolution of the identity on Coulomb and exchange."},
+                "RIJCOSX": {"TYPE": "FLAG", "CANONICAL": "RIJCOSX", "DESCRIPTION": "RI on Coulomb, chain-of-spheres on exchange."}
+            },
+            "DESCRIPTION": "Approximation of the two-electron integrals; needs an auxiliary basis."
+        },
+        "DISPERSION": {
+            "TYPE": "CHOICE",
+            "PATH": ["Dispersion"],
+            "FORMAT": {"INLINE": true},
+            "ARGUMENTS": {
+                "D2": {"TYPE": "FLAG", "CANONICAL": "D2"},
+                "D3ZERO": {"TYPE": "FLAG", "ALIASES": ["D3", "D3(0)"], "CANONICAL": "D3(0)"},
+                "D3BJ": {"TYPE": "FLAG", "ALIASES": ["D3-BJ", "D3(BJ)"], "CANONICAL": "D3(BJ)"},
+                "D4": {"TYPE": "FLAG", "CANONICAL": "D4"},
+                "NL": {"TYPE": "FLAG", "ALIASES": ["VV10"], "CANONICAL": "VV10", "DESCRIPTION": "Non-local VV10 correlation."}
+            },
+            "DESCRIPTION": "Dispersion correction, written on the keyword line."
+        },
+        "SOLVATION": {
+            "TYPE": "BLOCK",
+            "PATH": ["%cpcm"],
+            "VARIANTS": {
+                "CPCM": {
+                    "KEYWORD": null,
+                    "CANONICAL": "CPCM",
+                    "SETS": {"SMD": false},
+                    "DESCRIPTION": "Conductor-like polarisable continuum. A named solvent is given by epsilon and refrac here, or by the CPCM(water) keyword through raw."
+                },
+                "SMD": {
+                    "KEYWORD": null,
+                    "CANONICAL": "SMD",
+                    "SETS": {"SMD": true},
+                    "DESCRIPTION": "SMD solvation model, built on CPCM; the solvent is named by SMDsolvent."
+                }
+            },
+            "ARGUMENTS": {
+                "SMD": {"TYPE": "FLAG", "DESCRIPTION": "Set by the variant: false for CPCM, true for SMD."},
+                "SMDsolvent": {"TYPE": "STRING", "DESCRIPTION": "Name of the SMD solvent, e.g. water."},
+                "epsilon": {"TYPE": "REAL", "DESCRIPTION": "Dielectric constant of the solvent."},
+                "refrac": {"TYPE": "REAL", "DESCRIPTION": "Refractive index of the solvent."},
+                "Surface": {"TYPE": "STRING", "DESCRIPTION": "Cavity surface construction."}
+            },
+            "DESCRIPTION": "Implicit solvation, written in the %cpcm block; the variant selects CPCM or SMD."
+        },
+        "EXCITED_STATES": {
+            "TYPE": "BLOCK",
+            "ALIASES": ["TDDFT"],
+            "PATH": ["%tddft"],
+            "VARIANTS": {
+                "LR-TDDFT": {
+                    "KEYWORD": null,
+                    "ALIASES": ["TDDFT", "RPA"],
+                    "CANONICAL": "LR-TDDFT",
+                    "SETS": {"TDA": false},
+                    "DESCRIPTION": "Full linear-response TDDFT (RPA)."
+                },
+                "TDA": {
+                    "KEYWORD": null,
+                    "CANONICAL": "TDA",
+                    "SETS": {"TDA": true},
+                    "DESCRIPTION": "Tamm-Dancoff approximation, the default of ORCA."
+                }
+            },
+            "ARGUMENTS": {
+                "TDA": {"TYPE": "FLAG", "DESCRIPTION": "Set by the variant."},
+                "NRoots": {"TYPE": "INTEGER", "DESCRIPTION": "Number of excited states."},
+                "IRoot": {"TYPE": "INTEGER", "DESCRIPTION": "State followed by a gradient or an optimisation."},
+                "Triplets": {"TYPE": "FLAG"},
+                "MaxDim": {"TYPE": "INTEGER"},
+                "DoSOC": {"TYPE": "FLAG", "CANONICAL": "SPIN_ORBIT_COUPLING", "DESCRIPTION": "Spin-orbit coupling between the excited states."}
+            },
+            "DESCRIPTION": "Excited states, written in the %tddft block."
+        },
+        "SMEARING": {
+            "TYPE": "BLOCK",
+            "PATH": ["%scf"],
+            "VARIANTS": {
+                "FERMI_DIRAC": {
+                    "KEYWORD": null,
+                    "ALIASES": ["FERMI"],
+                    "CANONICAL": "FERMI_DIRAC",
+                    "DESCRIPTION": "Fractional occupations from a Fermi-Dirac distribution."
+                }
+            },
+            "ARGUMENTS": {
+                "SmearTemp": {"TYPE": "REAL", "DESCRIPTION": "Electronic temperature, K."}
+            },
+            "DESCRIPTION": "Occupation smearing of the SCF, written in the %scf block."
+        },
+        "ELECTRIC_FIELD": {
+            "TYPE": "LIST",
+            "SUBTYPE": "REAL",
+            "PATH": ["%scf", "EField"],
+            "FORMAT": {"SEPARATOR": ", "},
+            "CANONICAL": "ELECTRIC_FIELD",
+            "DESCRIPTION": "Homogeneous electric field, three components in atomic units."
+        },
+        "POINT_CHARGES": {
+            "TYPE": "STRING",
+            "PATH": ["%pointcharges"],
+            "CANONICAL": "POINT_CHARGES",
+            "DESCRIPTION": "Point-charge file, written as given: quote it (\"charges.pc\") as ORCA expects."
+        },
+        "SCF": {
+            "TYPE": "BLOCK",
+            "PATH": ["%scf"],
+            "ARGUMENTS": {
+                "MaxIter": {"TYPE": "INTEGER", "DESCRIPTION": "Maximum number of SCF cycles."},
+                "Convergence": {
+                    "TYPE": "CHOICE",
+                    "VALUES": ["Loose", "Normal", "Tight", "VeryTight", "Extreme"],
+                    "DESCRIPTION": "Convergence preset of the SCF."
+                },
+                "Guess": {"TYPE": "STRING", "DESCRIPTION": "Initial guess, e.g. PAtom, PModel, Hueckel."},
+                "Shift": {"TYPE": "BLOCK", "DESCRIPTION": "Level shift, e.g. { Shift 0.1, ErrOff 0.1 }."}
+            },
+            "DESCRIPTION": "General SCF settings, written in the %scf block."
+        },
+        "OUTPUT_CONTROL": {
+            "TYPE": "BLOCK",
+            "ALIASES": ["OUTPUT"],
+            "PATH": ["%output"],
+            "ARGUMENTS": {
+                "PrintLevel": {"TYPE": "STRING", "DESCRIPTION": "Amount of printing, e.g. Mini, Normal, Maxi."},
+                "XYZFile": {"TYPE": "FLAG", "DESCRIPTION": "Write the final geometry to orca.xyz."}
+            },
+            "DESCRIPTION": "Printing options, written in the %output block."
+        }
+    },
+
+    "OUTPUT": {
+        "FILES": {
+            "orca.out": {
+                "FORMAT": "TEXT",
+                "CONTENT": ["log", "total_energy", "mulliken_charges", "loewdin_charges", "dipole_moment", "orbital_energies", "frequencies", "excitations", "termination"],
+                "DESCRIPTION": "Standard output of the program, redirected by AMAC (stdout_file)."
+            },
+            "orca.engrad": {"FORMAT": "TEXT", "CONTENT": ["total_energy", "gradient"], "DESCRIPTION": "Energy and gradient in atomic units; forces are the opposite of the gradient."},
+            "orca.hess": {"FORMAT": "TEXT", "CONTENT": ["hessian", "frequencies", "normal_modes"]},
+            "orca.xyz": {"FORMAT": "XYZ", "CONTENT": ["final_geometry"]},
+            "orca_trj.xyz": {"FORMAT": "XYZ", "CONTENT": ["trajectory"]},
+            "orca.property.txt": {"FORMAT": "TEXT", "CONTENT": ["properties"], "DESCRIPTION": "Machine-readable property file; its layout is not parsed yet."},
+            "orca.gbw": {"FORMAT": "BINARY", "CONTENT": ["orbitals"], "DESCRIPTION": "Binary orbital file, kept for orca_plot; never read by AMAC."}
+        }
+    }
+}

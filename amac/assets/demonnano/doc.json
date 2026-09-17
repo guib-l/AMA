@@ -1,0 +1,495 @@
+{
+    "SOFTWARE": "DEMON",
+    "VERSION": "0.1.1",
+    "LIBRARY": "deMonPy (DeMonNanoPy 0.1.1), https://github.com/guib-l/DeMonNanoPy",
+    "NOTE": "VERSION is the version of the Python library, the only one AMAC can check. The version of the deMonNano program itself is not pinned (placeholder P1).",
+    "SYNTAX": "API",
+    "EXECUTION": [
+        "INPROCESS"
+    ],
+    "INPUT": {
+        "FILENAME": "deMon.inp",
+        "BINARY": "deMon.x",
+        "ARGUMENTS": [],
+        "STDIN": false,
+        "ENVIRONMENT": {
+            "DEMON_EXECUTABLE": "Absolute path of the deMon.x binary, given to the library as execut=.",
+            "OMP_NUM_THREADS": "Number of OpenMP threads; the library sets it from omp_threads."
+        },
+        "GEOMETRY": {
+            "BLOCK": "GEOMETRY",
+            "FORMAT": "xyz",
+            "UNIT": "Angstrom",
+            "DESCRIPTION": "Symbols and positions of the ase.Atoms, passed to the library as symbols= and positions=; it writes the GEOMETRY block itself."
+        },
+        "DESCRIPTION": "No input file is written by AMAC: the tree below is handed to deMonPy as BASIS, DEMON_PARAMETERS and DEMON_MODULE, and the library writes deMon.inp in the run directory. INPUT.RESOURCES is absent on purpose: cpu becomes omp_threads of the library, and deMonNano has no memory keyword."
+    },
+    "MODULES": {
+        "SINGLE_POINT": {
+            "KEYWORD": "",
+            "ALIASES": [
+                "SP",
+                "ENERGY",
+                "STATIC"
+            ],
+            "CANONICAL": "SINGLE_POINT",
+            "PERIODIC": "MOLECULE",
+            "ARGUMENTS": {},
+            "DESCRIPTION": "Energy on the input geometry. Nothing is written: the library runs deMonNano.calculate() without any module."
+        },
+        "GEOMETRY_OPTIMISATION": {
+            "KEYWORD": "",
+            "ALIASES": [
+                "OPT",
+                "GeometryOptimization",
+                "RELAX"
+            ],
+            "CANONICAL": "GEOMETRY_OPTIMISATION",
+            "TARGET": [
+                "DEMON_MODULE",
+                "ACTIVE",
+                "OPT"
+            ],
+            "PERIODIC": "MOLECULE",
+            "ARGUMENTS": {
+                "MAX": {
+                    "TYPE": "INTEGER",
+                    "DEFAULT": 999,
+                    "ALIASES": [
+                        "Steps"
+                    ],
+                    "RANGE": [
+                        1,
+                        1000000
+                    ],
+                    "DESCRIPTION": "Maximum number of optimisation steps."
+                },
+                "TOL": {
+                    "TYPE": "REAL",
+                    "DEFAULT": 0.0003,
+                    "DESCRIPTION": "Convergence threshold on the geometry change."
+                },
+                "GRADTOL": {
+                    "TYPE": "REAL",
+                    "DEFAULT": 4e-06,
+                    "DESCRIPTION": "Convergence threshold on the gradient."
+                },
+                "STEP": {
+                    "TYPE": "REAL",
+                    "DEFAULT": 0.3,
+                    "DESCRIPTION": "Maximum displacement of one step."
+                },
+                "ALGORITHM": {
+                    "TYPE": "CHOICE",
+                    "DEFAULT": "CGRAD",
+                    "ALIASES": [
+                        "Optimiser",
+                        "Optimizer"
+                    ],
+                    "VALUES": [
+                        "CGRAD",
+                        "SDC"
+                    ],
+                    "DESCRIPTION": "Conjugate gradient (CGRAD) or steepest descent (SDC). The library expects the chosen name as a flag of its OPT block; DeMonNano.build() writes it that way."
+                },
+                "TRAJECTORY": {
+                    "TYPE": "FLAG",
+                    "DEFAULT": true,
+                    "DESCRIPTION": "Write every step to deMon.mol, read back as the trajectory."
+                }
+            },
+            "DESCRIPTION": "Geometry relaxation, run through the 'opt' module of the library."
+        },
+        "MOLECULAR_DYNAMICS": {
+            "KEYWORD": "",
+            "ALIASES": [
+                "MD",
+                "BOMD"
+            ],
+            "CANONICAL": "MOLECULAR_DYNAMICS",
+            "TARGET": [
+                "DEMON_MODULE",
+                "ACTIVE",
+                "MD"
+            ],
+            "PERIODIC": "MOLECULE",
+            "ARGUMENTS": {
+                "TIMESTEP": {
+                    "TYPE": "REAL",
+                    "DEFAULT": 0.4,
+                    "DESCRIPTION": "Time step, in femtoseconds."
+                },
+                "STEPS": {
+                    "TYPE": "INTEGER",
+                    "DEFAULT": 100,
+                    "PATH": [
+                        "DEMON_MODULE",
+                        "ACTIVE",
+                        "MD",
+                        "MDSTEP",
+                        "MAX"
+                    ],
+                    "RANGE": [
+                        1,
+                        100000000
+                    ],
+                    "DESCRIPTION": "Number of dynamics steps."
+                },
+                "OUT": {
+                    "TYPE": "INTEGER",
+                    "DEFAULT": 10,
+                    "PATH": [
+                        "DEMON_MODULE",
+                        "ACTIVE",
+                        "MD",
+                        "MDSTEP",
+                        "OUT"
+                    ],
+                    "DESCRIPTION": "Steps between two writes of the trajectory."
+                },
+                "MDTEMP": {
+                    "TYPE": "REAL",
+                    "DEFAULT": 300,
+                    "ALIASES": [
+                        "Temperature"
+                    ],
+                    "DESCRIPTION": "Target temperature of the bath, in kelvin."
+                },
+                "INITIAL_TEMPERATURE": {
+                    "TYPE": "REAL",
+                    "DEFAULT": 300,
+                    "PATH": [
+                        "DEMON_MODULE",
+                        "ACTIVE",
+                        "MD",
+                        "MDYNAMICS",
+                        "RANDOM"
+                    ],
+                    "DESCRIPTION": "Temperature of the random initial velocities, in kelvin."
+                },
+                "THERMOSTAT": {
+                    "TYPE": "CHOICE",
+                    "DEFAULT": null,
+                    "VALUES": [
+                        "SCAL",
+                        "BERE",
+                        "NOSE",
+                        "LANGE",
+                        "STOCH_R",
+                        "ANDERSEN",
+                        "LOCA"
+                    ],
+                    "DESCRIPTION": "Thermostat of the MDBATH block; without it the dynamics is microcanonical. The library expects the chosen name as a flag among all seven, which DeMonNano.build() writes."
+                },
+                "THERMOSTAT_COUPLING": {
+                    "TYPE": "REAL",
+                    "DEFAULT": 0.5,
+                    "PATH": [
+                        "DEMON_MODULE",
+                        "ACTIVE",
+                        "MD",
+                        "MDBATH",
+                        "VAL"
+                    ],
+                    "DESCRIPTION": "Coupling strength of the thermostat (VAL of MDBATH)."
+                }
+            },
+            "DESCRIPTION": "Born-Oppenheimer molecular dynamics, run through the 'md' module of the library."
+        }
+    },
+    "METHODS": {
+        "DFTB": {
+            "KEYWORD": null,
+            "ALIASES": [
+                "TIGHT_BINDING"
+            ],
+            "PATH": [
+                "DEMON_PARAMETERS",
+                "ACTIVE",
+                "DFTB"
+            ],
+            "CANONICAL": "DFTB",
+            "TYPE": "BLOCK",
+            "MANDATORY": true,
+            "VARIANTS": {
+                "DFTB1": {
+                    "ALIASES": [
+                        "NCC-DFTB",
+                        "NON-SCC-DFTB"
+                    ],
+                    "CANONICAL": "DFTB1",
+                    "SETS": {
+                        "SCC": false
+                    },
+                    "DESCRIPTION": "Non self-consistent DFTB (first order)."
+                },
+                "DFTB2": {
+                    "ALIASES": [
+                        "SCC-DFTB"
+                    ],
+                    "CANONICAL": "DFTB2",
+                    "SETS": {
+                        "SCC": true
+                    },
+                    "DESCRIPTION": "Self-consistent charge DFTB (second order)."
+                },
+                "CI-DFTB": {
+                    "ALIASES": [
+                        "DFTB-CI"
+                    ],
+                    "CANONICAL": "CI-DFTB",
+                    "SETS": {
+                        "SCC": true
+                    },
+                    "ARGUMENTS": {
+                        "SIZECI": {
+                            "TYPE": "INTEGER",
+                            "DEFAULT": null,
+                            "PATH": [
+                                "DEMON_PARAMETERS",
+                                "ACTIVE",
+                                "CI",
+                                "SIZECI"
+                            ],
+                            "DESCRIPTION": "Size of the configuration interaction space."
+                        },
+                        "NOSLAT": {
+                            "TYPE": "FLAG",
+                            "DEFAULT": false,
+                            "PATH": [
+                                "DEMON_PARAMETERS",
+                                "ACTIVE",
+                                "CI",
+                                "NOSLAT"
+                            ],
+                            "DESCRIPTION": "Switch off the Slater rules."
+                        },
+                        "CONST": {
+                            "TYPE": "REAL",
+                            "DEFAULT": null,
+                            "PATH": [
+                                "DEMON_PARAMETERS",
+                                "ACTIVE",
+                                "CI",
+                                "CONST"
+                            ],
+                            "DESCRIPTION": "Constraint of the CI. When it is given, the library writes it instead of the bare CI keyword."
+                        }
+                    },
+                    "DESCRIPTION": "Configuration interaction on top of SCC-DFTB. The CI block itself is written by DeMonNano.build(), which is what activates the CI of deMonNano even without any argument."
+                }
+            },
+            "ARGUMENTS": {
+                "SCC": {
+                    "TYPE": "FLAG",
+                    "DEFAULT": true,
+                    "DESCRIPTION": "Self-consistent charge cycle. Set by the variant; giving it explicitly wins."
+                },
+                "TOL": {
+                    "TYPE": "REAL",
+                    "DEFAULT": 1e-08,
+                    "DESCRIPTION": "Convergence threshold of the SCC cycle."
+                },
+                "MAX": {
+                    "TYPE": "INTEGER",
+                    "DEFAULT": 100,
+                    "RANGE": [
+                        1,
+                        100000
+                    ],
+                    "DESCRIPTION": "Maximum number of SCC cycles."
+                },
+                "MIX": {
+                    "TYPE": "REAL",
+                    "DEFAULT": 0.2,
+                    "RANGE": [
+                        0.0,
+                        1.0
+                    ],
+                    "DESCRIPTION": "Mixing factor of the SCC cycle."
+                },
+                "FERMI": {
+                    "TYPE": "REAL",
+                    "DEFAULT": 0.0,
+                    "DESCRIPTION": "Electronic temperature of the fractional occupations, in kelvin; 0 disables them."
+                }
+            },
+            "DESCRIPTION": "Density Functional Tight Binding, parameterised by Slater-Koster files. deMonNano knows no other method family."
+        }
+    },
+    "PARAMETERS": {
+        "CHARGE": {
+            "TYPE": "INTEGER",
+            "DEFAULT": 0,
+            "PATH": [
+                "DEMON_PARAMETERS",
+                "ACTIVE",
+                "CHARGE"
+            ],
+            "DESCRIPTION": "Total charge of the system, written as the CHARGE keyword. It comes from the calculation, never from ase.Atoms (decision D1)."
+        },
+        "MULTIPLICITY": {
+            "TYPE": "INTEGER",
+            "DEFAULT": null,
+            "ALIASES": [
+                "MULTI"
+            ],
+            "PATH": [
+                "DEMON_PARAMETERS",
+                "ACTIVE",
+                "MULTI"
+            ],
+            "RANGE": [
+                1,
+                100
+            ],
+            "DESCRIPTION": "Spin multiplicity, written as the MULTI keyword."
+        },
+        "SLATER_KOSTER_FILES": {
+            "TYPE": "BLOCK",
+            "MANDATORY": true,
+            "PATH": [
+                "BASIS"
+            ],
+            "ALIASES": [
+                "BASIS"
+            ],
+            "ARGUMENTS": {
+                "PTYPE": {
+                    "TYPE": "STRING",
+                    "DEFAULT": "BIO",
+                    "ALIASES": [
+                        "SKTYPE"
+                    ],
+                    "PATH": [
+                        "BASIS",
+                        "PTYPE"
+                    ],
+                    "DESCRIPTION": "Name of the parameterisation, e.g. BIO or MAT."
+                },
+                "SKFILE": {
+                    "TYPE": "STRING",
+                    "MANDATORY": true,
+                    "PATH": [
+                        "BASIS",
+                        "SKFILE"
+                    ],
+                    "DESCRIPTION": "Directory holding the Slater-Koster files. AMAC never guesses it."
+                }
+            },
+            "DESCRIPTION": "Slater-Koster parameters, handed to the library as BASIS. Every deMonNano run needs them."
+        },
+        "REFERENCE": {
+            "TYPE": "BLOCK",
+            "PATH": [
+                "DEMON_PARAMETERS",
+                "ACTIVE",
+                "DFTB"
+            ],
+            "ARGUMENTS": {
+                "POLA": {
+                    "TYPE": "FLAG",
+                    "DEFAULT": false,
+                    "DESCRIPTION": "Spin polarisation of the DFTB block."
+                }
+            },
+            "VARIANTS": {
+                "RESTRICTED": {
+                    "CANONICAL": "RESTRICTED",
+                    "ALIASES": [
+                        "CLOSED_SHELL"
+                    ],
+                    "SETS": {
+                        "POLA": false
+                    },
+                    "DESCRIPTION": "Closed-shell reference: no spin polarisation."
+                }
+            },
+            "DESCRIPTION": "Spin treatment of the reference density. Only the closed-shell case is exposed; the spin-polarised one is not confirmed for deMonNano (placeholder P17)."
+        },
+        "OUTPUT_CONTROL": {
+            "TYPE": "BLOCK",
+            "PATH": [
+                "DEMON_PARAMETERS",
+                "ACTIVE",
+                "PRINT"
+            ],
+            "ARGUMENTS": {
+                "GRAD": {
+                    "TYPE": "FLAG",
+                    "DEFAULT": false,
+                    "ALIASES": [
+                        "Gradient"
+                    ],
+                    "DESCRIPTION": "Print the CARTESIAN GRADIENT block, which the forces handler reads. AMAC never adds it on its own."
+                },
+                "MOE": {
+                    "TYPE": "FLAG",
+                    "DEFAULT": false,
+                    "DESCRIPTION": "Print the eigenvalues of the molecular orbitals."
+                }
+            },
+            "DESCRIPTION": "PRINT block of deMonNano: what the program writes besides the energy."
+        }
+    },
+    "OUTPUT": {
+        "FILES": {
+            "deMon.inp": {
+                "FORMAT": "TEXT",
+                "CONTENT": [
+                    "input"
+                ],
+                "DESCRIPTION": "Input written by the library, kept for reproducibility."
+            },
+            "deMon.out": {
+                "FORMAT": "TEXT",
+                "CONTENT": [
+                    "log",
+                    "total_energy",
+                    "band_energy",
+                    "repulsive_energy",
+                    "fermi_energy",
+                    "homo_lumo_gap",
+                    "gradient",
+                    "dipole_moment",
+                    "orbital_energies",
+                    "termination"
+                ],
+                "DESCRIPTION": "Main output of the program, read by the parser."
+            },
+            "deMon.mol": {
+                "FORMAT": "XYZ",
+                "CONTENT": [
+                    "input_geometry",
+                    "final_geometry",
+                    "trajectory",
+                    "mulliken_charges"
+                ],
+                "DESCRIPTION": "Geometries in xyz, with a charge column; the last one is the final geometry."
+            },
+            "forces.out": {
+                "FORMAT": "TEXT",
+                "CONTENT": [
+                    "forces"
+                ],
+                "DESCRIPTION": "Forces of an optimisation run asked with SP; the parser prefers it over the gradient block."
+            },
+            "deMon.coef": {
+                "FORMAT": "TEXT",
+                "CONTENT": [
+                    "orbital_energies",
+                    "occupations",
+                    "orbital_coefficients"
+                ],
+                "DESCRIPTION": "Molecular orbitals, written with PRINT MOS; not read by AMAC."
+            },
+            "deMon.rst": {
+                "FORMAT": "TEXT",
+                "CONTENT": [
+                    "restart"
+                ],
+                "DESCRIPTION": "Restart file; never read by AMAC."
+            }
+        }
+    }
+}

@@ -56,6 +56,12 @@
         },
         "CAM-DFTB": {
             "DESCRIPTION": "DFTB hybride de type Coulomb-attenuating method."
+        },
+        "CI-DFTB": {
+            "ALIASES": [
+                "DFTB-CI"
+            ],
+            "DESCRIPTION": "Méthode de DFTB avec CI."
         }
     }
 }

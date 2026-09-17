@@ -445,8 +445,8 @@ entries.
    | `hessian` | Hessian matrix |
 
    Handlers return ASE units (eV, Å): the normalized dataclass of a software keeps
-   the units of the program, and the handlers convert them. DFTB+ follows this rule
-   today; the other packages will as they are written.
+   the units of the program, and the handlers convert them. DFTB+ and ORCA follow
+   this rule today; the other packages will as they are written.
 
 5. **Import the software module** explicitly in `amac/assets/__init__.py` (there is
    no filesystem scan).
@@ -454,9 +454,10 @@ entries.
 The dummy software (`amac/assets/_dummy/`) is a complete minimal example of both
 kinds, without `doc.json`: `DummySoftware` writes its input in `prepare` and lists
 its output in `collect`, and its calculations run with `validate="off"`. The
-package of DFTB+ is complete (`composer.py`, `parser.py`, `handlers.py`,
-`drivers.py`); those of ORCA, Gaussian and deMonNano exist but expose no handler
-yet.
+packages of DFTB+ and ORCA are complete (`composer.py`, `parser.py`,
+`handlers.py`, `drivers.py`), and deMonNano is complete as an in-process software
+(`demonnano.py`, `parser.py`, `handlers.py`), driven by the `deMonPy` library;
+that of Gaussian exists but exposes no handler yet.
 
 ## Using a dedicated library
 
@@ -539,17 +540,19 @@ the canonical catalog and its equivalence tables, and the dummy programs (withou
 
 Not implemented yet:
 
-- concrete composers for the `KEYWORD_BLOCK`, `TREE`, `NAMELIST` and `FLAT`
-  syntaxes;
-- real software: ORCA, Gaussian, DFTB+ and deMonNano are registered but their
-  `command()` raises `NotImplementedError`, and only DFTB+ has a `doc.json`; PySCF
-  and GPAW are not started;
-- drivers for real libraries (OPI for ORCA, the DFTB+ API, AbiPy): only the
-  test driver `dummy-lib` exists;
+- concrete composers for the `NAMELIST` and `FLAT` syntaxes (`KEYWORD_BLOCK` and
+  `TREE` are implemented);
+- real software: DFTB+, ORCA and deMonNano are complete, with their `doc.json`;
+  deMonNano runs in process through the `deMonPy` library (`DeMonNanoPy`, installed
+  from its repository, not from PyPI); Gaussian is registered but its `command()`
+  raises `NotImplementedError` and it has no `doc.json`; PySCF and GPAW are not
+  started;
+- the OPI driver of ORCA and the AbiPy one: ORCA collects with `cclib`, DFTB+ has
+  its API and `hsd` drivers, and the tests use `dummy-lib`;
 - parallel images, HPC schedulers, restarts and chained calculations (chaining is
-  left to a workflow layer outside the core);
-- the free-text `CONDITION` fields of the `doc.json`;
-- unit conversion: handlers return the values of the program unchanged.
+  left to a workflow layer outside the core), so the external programs
+  `orca_plot`, `modes` and `waveplot` are not run;
+- the free-text `CONDITION` fields of the `doc.json`.
 
 `amac/engine/backend.py` is a legacy attribute proxy kept for reference; AMAC does
 not use it.

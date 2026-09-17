@@ -1,11 +1,11 @@
 """Same DFT single point with ORCA, then with Gaussian, changing only the software.
 
-Illustrative: requires the real software, their handlers and composers, not
-implemented yet.
+Illustrative: requires the programs themselves. The ORCA package is written; the
+Gaussian one is not yet.
 
 The calculation is described once; only ``software`` (and the handler module, since
-handlers belong to a software) changes between the two runs. Energies are returned
-in the units of each program (Hartree for both).
+handlers belong to a software) changes between the two runs. Handlers return ASE
+units, so both energies come back in eV.
 """
 
 from pathlib import Path
@@ -18,12 +18,15 @@ from amac.assets import gaussian, orca
 WORKDIR = Path.home() / "amac-runs" / "01-single-point"
 
 # Description canonique du calcul, commune aux deux logiciels.
+# La charge et la multiplicité sont des paramètres, pas des arguments de méthode.
 CALCULATION = {
     "method": "DFT",
-    "method_args": {"variant": "PBE0", "Charge": 0, "Multiplicity": 1},
+    "method_args": {"variant": "PBE0"},
     "module": "SINGLE_POINT",
     "parameters": {
         "BASIS": "def2-TZVP",
+        "CHARGE": 0,
+        "MULTIPLICITY": 1,
         "DISPERSION": "D3BJ",
         "SCF": {"Convergence": "Tight"},
     },
@@ -59,12 +62,11 @@ def main() -> None:
         if not result.success:
             raise SystemExit(f"{software} failed: {result.errors}")
         energies[software] = result.properties["energy"]
-        print(f"{software:8s} E = {energies[software]:.8f} Eh")
+        print(f"{software:8s} E = {energies[software]:.8f} eV")
         print(f"{software:8s} dipole = {result.properties['dipole']}")
 
-    # Écart entre les deux programmes, en kcal/mol.
-    hartree_to_kcal = units.Hartree / (units.kcal / units.mol)
-    difference = (energies["ORCA"] - energies["GAUSSIAN"]) * hartree_to_kcal
+    # Écart entre les deux programmes, en kcal/mol : les handlers rendent des eV.
+    difference = (energies["ORCA"] - energies["GAUSSIAN"]) / (units.kcal / units.mol)
     print(f"ORCA - Gaussian = {difference:+.4f} kcal/mol")
 
 
