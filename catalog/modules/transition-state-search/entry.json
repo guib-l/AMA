@@ -1,8 +1,0 @@
-{
-    "ID": "TRANSITION_STATE_SEARCH",
-    "ALIASES": [
-        "TS_SEARCH",
-        "OPTTS"
-    ],
-    "DESCRIPTION": "Recherche d'un point selle d'ordre 1. TS désigne la dispersion de Tkatchenko-Scheffler."
-}

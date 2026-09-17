@@ -6,7 +6,6 @@
     "VARIANT_REQUIRED": true,
     "ACCEPTS": [
         "DISPERSION",
-        "SOLVATION",
         "SMEARING",
         "KPOINTS"
     ],

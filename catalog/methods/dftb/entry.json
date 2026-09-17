@@ -7,8 +7,6 @@
     "ACCEPTS": [
         "REFERENCE",
         "DISPERSION",
-        "SOLVATION",
-        "EXCITED_STATES",
         "SMEARING",
         "KPOINTS",
         "HUBBARD_U",

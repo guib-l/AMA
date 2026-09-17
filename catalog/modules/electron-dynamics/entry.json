@@ -1,9 +1,0 @@
-{
-    "ID": "ELECTRON_DYNAMICS",
-    "ALIASES": [
-        "RT-TDDFT",
-        "EHRENFEST",
-        "REAL_TIME_PROPAGATION"
-    ],
-    "DESCRIPTION": "Propagation en temps réel de la densité électronique (et des noyaux en Ehrenfest)."
-}

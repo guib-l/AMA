@@ -59,41 +59,6 @@
             },
             "DESCRIPTION": "Minimisation of the energy with respect to the nuclear coordinates."
         },
-        "TRANSITION_STATE_SEARCH": {
-            "KEYWORD": "OptTS",
-            "ALIASES": ["TS", "OPTTS"],
-            "CANONICAL": "TRANSITION_STATE_SEARCH",
-            "TARGET": "SIMPLE_INPUT",
-            "PERIODIC": "MOLECULE",
-            "ARGUMENTS": {
-                "TS_Mode": {"TYPE": "INTEGER", "PATH": ["%geom", "TS_Mode"], "DESCRIPTION": "Index of the mode followed uphill."},
-                "Calc_Hess": {"TYPE": "FLAG", "PATH": ["%geom", "Calc_Hess"], "DESCRIPTION": "Compute the exact Hessian before the search."}
-            },
-            "DESCRIPTION": "Search for a first-order saddle point (eigenvector following)."
-        },
-        "IRC": {
-            "KEYWORD": "IRC",
-            "CANONICAL": "IRC",
-            "TARGET": "SIMPLE_INPUT",
-            "PERIODIC": "MOLECULE",
-            "ARGUMENTS": {
-                "MaxIter": {"TYPE": "INTEGER", "PATH": ["%irc", "MaxIter"]},
-                "Direction": {"TYPE": "CHOICE", "PATH": ["%irc", "Direction"], "VALUES": ["both", "forward", "backward", "down"]}
-            },
-            "DESCRIPTION": "Intrinsic reaction coordinate, downhill from a transition state."
-        },
-        "NEB": {
-            "KEYWORD": "NEB",
-            "ALIASES": ["NEB-TS"],
-            "CANONICAL": "NEB",
-            "TARGET": "SIMPLE_INPUT",
-            "PERIODIC": "MOLECULE",
-            "ARGUMENTS": {
-                "NEB_End_XYZFile": {"TYPE": "STRING", "PATH": ["%neb", "NEB_End_XYZFile"], "DESCRIPTION": "File holding the product geometry."},
-                "NImages": {"TYPE": "INTEGER", "PATH": ["%neb", "NImages"], "DESCRIPTION": "Number of images between the two end points."}
-            },
-            "DESCRIPTION": "Nudged elastic band between two geometries."
-        },
         "PES_SCAN": {
             "KEYWORD": null,
             "ALIASES": ["SCAN"],
@@ -212,50 +177,6 @@
             },
             "DESCRIPTION": "Moller-Plesset perturbation theory."
         },
-        "COUPLED_CLUSTER": {
-            "KEYWORD": null,
-            "ALIASES": ["CC"],
-            "CANONICAL": "COUPLED_CLUSTER",
-            "VARIANTS": {
-                "CCSD": {"KEYWORD": "CCSD", "CANONICAL": "CCSD"},
-                "CCSD(T)": {"KEYWORD": "CCSD(T)", "CANONICAL": "CCSD(T)"},
-                "QCISD": {"KEYWORD": "QCISD", "CANONICAL": "QCISD"},
-                "QCISD(T)": {"KEYWORD": "QCISD(T)", "CANONICAL": "QCISD(T)"},
-                "EOM-CCSD": {"KEYWORD": "EOM-CCSD", "CANONICAL": "EOM-CCSD"}
-            },
-            "ARGUMENTS": {
-                "MaxCore": {"TYPE": "INTEGER", "PATH": ["%mdci", "MaxCore"], "DESCRIPTION": "Memory of the correlation module, MB."},
-                "NRoots": {"TYPE": "INTEGER", "PATH": ["%mdci", "NRoots"], "DESCRIPTION": "Number of EOM-CCSD roots."}
-            },
-            "DESCRIPTION": "Coupled cluster. The DLPNO approximations are not exposed: in ORCA they prefix the method keyword (DLPNO-CCSD(T)) and are reached with raw."
-        },
-        "CONFIGURATION_INTERACTION": {
-            "KEYWORD": null,
-            "ALIASES": ["CI"],
-            "CANONICAL": "CONFIGURATION_INTERACTION",
-            "VARIANTS": {
-                "CIS": {"KEYWORD": "CIS", "CANONICAL": "CIS"}
-            },
-            "DESCRIPTION": "Configuration interaction."
-        },
-        "MULTIREFERENCE": {
-            "KEYWORD": null,
-            "ALIASES": ["MR", "CAS"],
-            "CANONICAL": "MULTIREFERENCE",
-            "VARIANTS": {
-                "CASSCF": {"KEYWORD": "CASSCF", "CANONICAL": "CASSCF"},
-                "CASPT2": {"KEYWORD": "CASPT2", "CANONICAL": "CASPT2"},
-                "NEVPT2": {"KEYWORD": "NEVPT2", "CANONICAL": "NEVPT2"},
-                "MRCI": {"KEYWORD": "MRCI", "CANONICAL": "MRCI"}
-            },
-            "ARGUMENTS": {
-                "NEl": {"TYPE": "INTEGER", "PATH": ["%casscf", "nel"], "DESCRIPTION": "Electrons of the active space."},
-                "NOrb": {"TYPE": "INTEGER", "PATH": ["%casscf", "norb"], "DESCRIPTION": "Orbitals of the active space."},
-                "Mult": {"TYPE": "LIST", "SUBTYPE": "INTEGER", "PATH": ["%casscf", "mult"], "DESCRIPTION": "Multiplicities of the computed states."},
-                "NRoots": {"TYPE": "LIST", "SUBTYPE": "INTEGER", "PATH": ["%casscf", "nroots"], "DESCRIPTION": "Roots per multiplicity."}
-            },
-            "DESCRIPTION": "Multireference methods built on a CASSCF reference; the active space is given by NEl and NOrb."
-        },
         "XTB": {
             "KEYWORD": null,
             "ALIASES": ["GFN-XTB"],
@@ -335,61 +256,6 @@
                 "NL": {"TYPE": "FLAG", "ALIASES": ["VV10"], "CANONICAL": "VV10", "DESCRIPTION": "Non-local VV10 correlation."}
             },
             "DESCRIPTION": "Dispersion correction, written on the keyword line."
-        },
-        "SOLVATION": {
-            "TYPE": "BLOCK",
-            "PATH": ["%cpcm"],
-            "VARIANTS": {
-                "CPCM": {
-                    "KEYWORD": null,
-                    "CANONICAL": "CPCM",
-                    "SETS": {"SMD": false},
-                    "DESCRIPTION": "Conductor-like polarisable continuum. A named solvent is given by epsilon and refrac here, or by the CPCM(water) keyword through raw."
-                },
-                "SMD": {
-                    "KEYWORD": null,
-                    "CANONICAL": "SMD",
-                    "SETS": {"SMD": true},
-                    "DESCRIPTION": "SMD solvation model, built on CPCM; the solvent is named by SMDsolvent."
-                }
-            },
-            "ARGUMENTS": {
-                "SMD": {"TYPE": "FLAG", "DESCRIPTION": "Set by the variant: false for CPCM, true for SMD."},
-                "SMDsolvent": {"TYPE": "STRING", "DESCRIPTION": "Name of the SMD solvent, e.g. water."},
-                "epsilon": {"TYPE": "REAL", "DESCRIPTION": "Dielectric constant of the solvent."},
-                "refrac": {"TYPE": "REAL", "DESCRIPTION": "Refractive index of the solvent."},
-                "Surface": {"TYPE": "STRING", "DESCRIPTION": "Cavity surface construction."}
-            },
-            "DESCRIPTION": "Implicit solvation, written in the %cpcm block; the variant selects CPCM or SMD."
-        },
-        "EXCITED_STATES": {
-            "TYPE": "BLOCK",
-            "ALIASES": ["TDDFT"],
-            "PATH": ["%tddft"],
-            "VARIANTS": {
-                "LR-TDDFT": {
-                    "KEYWORD": null,
-                    "ALIASES": ["TDDFT", "RPA"],
-                    "CANONICAL": "LR-TDDFT",
-                    "SETS": {"TDA": false},
-                    "DESCRIPTION": "Full linear-response TDDFT (RPA)."
-                },
-                "TDA": {
-                    "KEYWORD": null,
-                    "CANONICAL": "TDA",
-                    "SETS": {"TDA": true},
-                    "DESCRIPTION": "Tamm-Dancoff approximation, the default of ORCA."
-                }
-            },
-            "ARGUMENTS": {
-                "TDA": {"TYPE": "FLAG", "DESCRIPTION": "Set by the variant."},
-                "NRoots": {"TYPE": "INTEGER", "DESCRIPTION": "Number of excited states."},
-                "IRoot": {"TYPE": "INTEGER", "DESCRIPTION": "State followed by a gradient or an optimisation."},
-                "Triplets": {"TYPE": "FLAG"},
-                "MaxDim": {"TYPE": "INTEGER"},
-                "DoSOC": {"TYPE": "FLAG", "CANONICAL": "SPIN_ORBIT_COUPLING", "DESCRIPTION": "Spin-orbit coupling between the excited states."}
-            },
-            "DESCRIPTION": "Excited states, written in the %tddft block."
         },
         "SMEARING": {
             "TYPE": "BLOCK",

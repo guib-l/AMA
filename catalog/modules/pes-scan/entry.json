@@ -1,8 +1,0 @@
-{
-    "ID": "PES_SCAN",
-    "ALIASES": [
-        "RELAXED_SCAN",
-        "SURFACE_SCAN"
-    ],
-    "DESCRIPTION": "Balayage de la surface d'énergie potentielle."
-}

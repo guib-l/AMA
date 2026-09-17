@@ -7,9 +7,7 @@
     "ACCEPTS": [
         "REFERENCE",
         "INTEGRAL_APPROXIMATION",
-        "DISPERSION",
-        "SOLVATION",
-        "EXCITED_STATES"
+        "DISPERSION"
     ],
     "DESCRIPTION": "Hartree-Fock. Le caractère restreint ou non est l'axe REFERENCE, pas une méthode."
 }

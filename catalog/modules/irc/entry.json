@@ -1,7 +1,0 @@
-{
-    "ID": "IRC",
-    "ALIASES": [
-        "INTRINSIC_REACTION_COORDINATE"
-    ],
-    "DESCRIPTION": "Chemin de réaction intrinsèque depuis un état de transition."
-}
