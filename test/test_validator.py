@@ -1,163 +1,296 @@
-"""Tests of amac.parameter.validator on the sample doc.json of test/fixtures."""
+"""Tests of amac.parameter.validator, against the real ``doc.json`` files.
+
+The rules checked here are generic (variants, ``SETS``, ``COMMON_ARGUMENTS``,
+``MANDATORY``, ``REQUIRES``, ``PERIODIC``, types and ranges); DFTB+ and deMonNano
+only provide the declarations they apply to.
+"""
 
 import warnings
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
+from ase import Atoms
+from ase.build import bulk, molecule
 
+import amac
 from amac.exceptions import ValidationError
 from amac.parameter.parameters import CalculationSpec
-from amac.parameter.schema import Schema, load
-from amac.parameter.validator import Issue, validate
+from amac.parameter.schema import load
+from amac.parameter.validator import MODES, Issue, validate
 
-SCHEMA_DOC = Path(__file__).parent / "fixtures" / "schema.json"
+ASSETS = Path(amac.__file__).parent / "assets"
+DFTBPLUS_DOC = ASSETS / "dftbplus" / "doc.json"
+DEMONNANO_DOC = ASSETS / "demonnano" / "doc.json"
+FOLDING = [[4, 0, 0], [0, 4, 0], [0, 0, 4], [0.5, 0.5, 0.5]]
+
 
 @pytest.fixture
-def schema() -> Schema:
-    return load(SCHEMA_DOC)
+def dftbplus():
+    return load(DFTBPLUS_DOC)
 
 
-def make_spec(**overrides) -> CalculationSpec:
-    kwargs = {
-        "method": "DFT",
-        "method_args": {"variant": "PBE"},
-        "module": "SINGLE_POINT",
-        "parameters": {"BASIS": "sto-3g"},
-    }
-    return CalculationSpec.from_kwargs(**kwargs | overrides)
+@pytest.fixture
+def demonnano():
+    return load(DEMONNANO_DOC)
 
 
-def issue_paths(spec: CalculationSpec, schema: Schema, atoms=None) -> list[str]:
+def dftb_spec(method_args=None, module="SINGLE_POINT", **parameters) -> CalculationSpec:
+    """Return a valid DFTB+ specification, altered by the arguments."""
+    arguments = {"variant": "DFTB2", "MaxAngularMomentum": {"Si": "p"}}
+    slater_koster = {"variant": "Type2FileNames"}
+    return CalculationSpec.from_kwargs(
+        method="TIGHT_BINDING",
+        method_args=arguments | (method_args or {}),
+        module=module,
+        parameters={"SLATER_KOSTER_FILES": slater_koster} | parameters,
+    )
+
+
+def issues(spec, schema, atoms=None) -> list[Issue]:
+    """Return the issues of ``spec`` without letting the warnings escape."""
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        issues = validate(spec, schema, mode="warn", atoms=atoms)
-    return [issue.path for issue in issues]
+        return validate(spec, schema, mode="warn", atoms=atoms)
 
 
-def test_valid_spec_has_no_issue(schema):
-    assert validate(make_spec(), schema) == []
+def paths(spec, schema, atoms=None) -> list[str]:
+    return [issue.path for issue in issues(spec, schema, atoms)]
 
 
-def test_unknown_method(schema):
-    assert issue_paths(make_spec(method="CCSD"), schema) == ["method"]
+# Modes.
 
 
-def test_unknown_variant(schema):
-    spec = make_spec(method_args={"variant": "PBE0"})
-    assert issue_paths(spec, schema) == ["method_args.variant"]
+def test_valid_specification_has_no_issue(dftbplus):
+    assert validate(dftb_spec(), dftbplus) == []
 
 
-def test_unknown_module(schema):
-    assert issue_paths(make_spec(module="MD"), schema) == ["module"]
+def test_strict_lists_every_issue(dftbplus):
+    spec = dftb_spec({"SCC": False}, KPOINTS={"SuperFolding": FOLDING})
+    with pytest.raises(ValidationError) as info:
+        validate(spec, dftbplus, mode="strict")
+    message = str(info.value)
+    assert message.startswith("Invalid calculation for DFTBP:")
+    assert message.count("  - ") == 2
 
 
-def test_unknown_option(schema):
-    spec = make_spec(parameters={"BASIS": "sto-3g", "SCF": {"Damping": 0.5}})
-    assert issue_paths(spec, schema) == ["parameters.SCF.Damping"]
+def test_warn_emits_one_warning_per_issue(dftbplus):
+    spec = dftb_spec({"SCC": False}, KPOINTS={"SuperFolding": FOLDING})
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        found = validate(spec, dftbplus, mode="warn")
+    assert len(found) == len(caught) == 2
+    assert all(isinstance(issue, Issue) and issue.level == "error" for issue in found)
 
 
-def test_aliases_are_resolved(schema):
-    spec = make_spec(
-        method="dft",
-        method_args={"VARIANT": "pbe96", "multiplicity": 2},
-        module="sp",
-        parameters={"basis": "sto-3g", "scf_options": {"maxiterations": 50}},
+def test_off_skips_the_checks(dftbplus):
+    assert validate(dftb_spec({"SCC": False}), dftbplus, mode="off") == []
+
+
+def test_unknown_mode(dftbplus):
+    assert MODES == ("strict", "warn", "off")
+    with pytest.raises(ValueError, match="Unknown validation mode 'lenient'"):
+        validate(dftb_spec(), dftbplus, mode="lenient")
+
+
+# Methods, modules and their variants.
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "path", "match"),
+    [
+        ({"method": "NOPE"}, "method", "Unknown METHODS entry 'NOPE'"),
+        ({"module": "NOPE"}, "module", "Unknown MODULES entry 'NOPE'"),
+    ],
+    ids=["method", "module"],
+)
+def test_unknown_method_or_module(dftbplus, kwargs, path, match):
+    spec = CalculationSpec.from_kwargs(
+        **{"method": "TIGHT_BINDING", "module": "SINGLE_POINT"} | kwargs
     )
-    assert validate(spec, schema) == []
+    issue = issues(spec, dftbplus)[0]
+    assert issue.path == path
+    assert match in issue.message
+
+
+def test_unknown_variant(dftbplus):
+    [issue] = issues(dftb_spec({"variant": "DFTB9"}), dftbplus)
+    assert issue.path == "method_args.variant"
+    assert "Unknown variant" in issue.message
+
+
+def test_variant_must_be_a_string(dftbplus):
+    [issue] = issues(dftb_spec({"variant": 2}), dftbplus)
+    assert issue.message == "variant must be a str, got int"
+
+
+def test_a_variant_imposes_its_options(dftbplus):
+    """``SETS`` of the DFTB2 variant: SCC is on, and cannot be turned off."""
+    assert validate(dftb_spec(), dftbplus) == []
+    with pytest.raises(ValidationError, match="variant 'DFTB2' sets SCC to True"):
+        validate(dftb_spec({"SCC": False}), dftbplus)
+    # The same value as the one imposed is accepted.
+    assert validate(dftb_spec({"SCC": True}), dftbplus) == []
+
+
+def test_unknown_argument_is_reported_with_its_path(dftbplus):
+    assert paths(dftb_spec({"SCCTolerence": 1e-6}), dftbplus) == [
+        "method_args.SCCTolerence"
+    ]
+
+
+# Options: variants, common arguments and companions.
+
+
+def test_option_variants_and_their_arguments(dftbplus):
+    spec = dftb_spec(
+        KPOINTS={"SupercellFolding": FOLDING},
+        FILLING={"Fermi": {"Temperature": 0.001}},
+    )
+    assert validate(spec, dftbplus) == []
 
 
 @pytest.mark.parametrize(
-    ("scf", "path"),
+    ("parameters", "path"),
     [
-        ({"MaxIter": 0}, "parameters.SCF.MaxIter"),
-        ({"Mixer": "Pulay"}, "parameters.SCF.Mixer"),
-        ({"MaxIter": "ten"}, "parameters.SCF.MaxIter"),
+        ({"KPOINTS": {"SuperFolding": FOLDING}}, "parameters.KPOINTS"),
+        (
+            {"SLATER_KOSTER_FILES": {"variant": "Type2FileNames", "Prefixx": "x"}},
+            "parameters.SLATER_KOSTER_FILES.Prefixx",
+        ),
+        (
+            {"SLATER_KOSTER_FILES": {"variant": "Type2FileNames", "Prefix": "x/"}},
+            "parameters.SLATER_KOSTER_FILES.Prefix",
+        ),
+        (
+            {"FILLING": {"Fermi": {"Temprature": 0.001}}},
+            "parameters.FILLING.Fermi.Temprature",
+        ),
+        (
+            {"SPIN_POLARISATION": {"Colinear": {"UnpairedElectrons": 2.0}}},
+            "parameters.SpinConstants",
+        ),
     ],
-    ids=["out-of-range", "not-in-values", "wrong-type"],
-)
-def test_invalid_value(schema, scf, path):
-    spec = make_spec(parameters={"BASIS": "sto-3g", "SCF": scf})
-    assert issue_paths(spec, schema) == [path]
-
-
-def test_mandatory_missing(schema):
-    assert issue_paths(make_spec(parameters={}), schema) == ["parameters.BASIS"]
-
-
-def test_mandatory_if_not_satisfied(schema):
-    spec = make_spec(parameters={"BASIS": "sto-3g", "SCF": {"Mixer": "Simple"}})
-    assert issue_paths(spec, schema) == ["parameters.SCF.MixingParameter"]
-
-
-def test_mandatory_if_satisfied(schema):
-    scf = {"Mixer": "Simple", "MixingParameter": 0.3}
-    spec = make_spec(parameters={"BASIS": "sto-3g", "SCF": scf})
-    assert issue_paths(spec, schema) == []
-
-
-def test_excluded_options(schema):
-    parameters = {"BASIS": "sto-3g", "SOLVENT": "water", "EPSILON": 80.0}
-    spec = make_spec(parameters=parameters)
-    assert issue_paths(spec, schema) == ["parameters.SOLVENT", "parameters.EPSILON"]
-
-
-def test_option_excluded_by_method(schema):
-    parameters = {"BASIS": "sto-3g", "DISPERSION": "D3"}
-    assert issue_paths(make_spec(parameters=parameters), schema) == []
-    spec = make_spec(method="HF", method_args={}, parameters=parameters)
-    assert issue_paths(spec, schema) == ["parameters.DISPERSION"]
-
-
-def test_requires_of_module(schema):
-    assert issue_paths(make_spec(module="OPT"), schema) == ["module"]
-    parameters = {"BASIS": "sto-3g", "OUTPUT": {"WriteForces": True}}
-    assert issue_paths(make_spec(module="OPT", parameters=parameters), schema) == []
-
-
-@pytest.mark.parametrize(
-    ("overrides", "pbc", "path"),
-    [
-        ({"module": "OPT"}, (False, False, True), "module"),
-        ({"method_args": {"variant": "B3LYP"}}, True, "method_args.variant"),
+    ids=[
+        "unknown-kpoints-variant",
+        "unknown-variant-argument",
+        "prefix-from-basis",
+        "common-argument",
+        "companion",
     ],
 )
-def test_periodic_incompatible(schema, overrides, pbc, path):
-    parameters = {"BASIS": "sto-3g", "OUTPUT": {"WriteForces": True}}
-    spec = make_spec(parameters=parameters, **overrides)
-    assert issue_paths(spec, schema, SimpleNamespace(pbc=pbc)) == [path]
-    assert issue_paths(spec, schema, SimpleNamespace(pbc=[False] * 3)) == []
+def test_invalid_options(dftbplus, parameters, path):
+    assert paths(dftb_spec(**parameters), dftbplus) == [path]
 
 
-def test_atoms_without_pbc(schema):
+def test_unknown_parameter(dftbplus):
+    [issue] = issues(dftb_spec(SOLVATION_MODEL="cpcm"), dftbplus)
+    assert issue.path == "parameters.SOLVATION_MODEL"
+    assert issue.message.startswith("Unknown option 'SOLVATION_MODEL'. Available: ")
+
+
+def test_option_given_twice_under_two_spellings(dftbplus):
+    spec = dftb_spec({"SCCTolerance": 1e-6, "scctolerance": 1e-8})
+    [issue] = issues(spec, dftbplus)
+    assert "given several times" in issue.message
+
+
+def test_option_names_must_be_strings(dftbplus):
+    [issue] = issues(dftb_spec({3: "p"}), dftbplus)
+    assert issue.message == "option names must be str, got 3"
+
+
+# Types, values and ranges.
+
+
+def test_wrong_type(dftbplus):
+    [issue] = issues(dftb_spec({"SCCTolerance": "tight"}), dftbplus)
+    assert issue.path == "method_args.SCCTolerance"
+    assert "expected REAL, got str" in issue.message
+
+
+def test_value_outside_the_declared_range(dftbplus):
+    """``FILLING`` declares the order of Methfessel-Paxton in [1, 10]."""
+    spec = dftb_spec(FILLING={"MethfesselPaxton": {"Order": 42}})
+    [issue] = issues(spec, dftbplus)
+    assert issue.path == "parameters.FILLING.MethfesselPaxton.Order"
+    assert "outside [1, 10]" in issue.message
+
+
+def test_value_not_in_the_declared_list(dftbplus):
+    """``MIXER`` declares the mixers DFTB+ knows: no other name is accepted."""
+    [issue] = issues(dftb_spec(MIXER={"Nope": {}}), dftbplus)
+    assert issue.path == "parameters.MIXER"
+    assert "'Nope' is not one of: Broyden, Anderson, DIIS, Simple" in issue.message
+
+
+# Mandatory options and module requirements.
+
+
+def test_mandatory_option_missing(dftbplus):
+    spec = CalculationSpec.from_kwargs(
+        method="TIGHT_BINDING",
+        method_args={"variant": "DFTB2"},
+        parameters={"SLATER_KOSTER_FILES": {"variant": "Type2FileNames"}},
+    )
+    [issue] = issues(spec, dftbplus)
+    assert issue.path == "method_args.MaxAngularMomentum"
+    assert issue.message == "mandatory option is missing"
+
+
+def test_module_requirements(demonnano):
+    """deMonNano needs its Slater-Koster block, whatever the module."""
+    spec = CalculationSpec.from_kwargs(
+        method="TIGHT_BINDING",
+        method_args={"variant": "SCC-DFTB"},
+        module="SINGLE_POINT",
+    )
+    assert any("SLATER_KOSTER_FILES" in issue.path for issue in issues(spec, demonnano))
+
+
+# Geometry.
+
+
+def test_molecule_only_module_refuses_a_periodic_cell(demonnano):
+    """Every module of deMonNano is declared MOLECULE."""
+    spec = CalculationSpec.from_kwargs(
+        method="TIGHT_BINDING",
+        method_args={"variant": "SCC-DFTB"},
+        module="SINGLE_POINT",
+        parameters={"SLATER_KOSTER_FILES": {"PTYPE": "BIO"}},
+    )
+    assert issues(spec, demonnano, atoms=molecule("H2O")) == []
+    crystal = bulk("Si", "diamond", a=5.43)
+    [issue] = issues(spec, demonnano, atoms=crystal)
+    assert issue.message == "atoms.pbc is periodic, MOLECULE only"
+
+
+def test_both_accepts_a_molecule_and_a_crystal(dftbplus):
+    """The modules of DFTB+ are declared BOTH: the geometry never refuses them."""
+    spec = dftb_spec()
+    assert issues(spec, dftbplus, atoms=molecule("H2O")) == []
+    assert issues(spec, dftbplus, atoms=bulk("Si", "diamond", a=5.43)) == []
+
+
+def test_geometry_is_only_checked_when_given(demonnano):
+    spec = CalculationSpec.from_kwargs(
+        method="TIGHT_BINDING",
+        method_args={"variant": "SCC-DFTB"},
+        parameters={"SLATER_KOSTER_FILES": {"PTYPE": "BIO"}},
+    )
+    assert validate(spec, demonnano) == []
+
+
+def test_atoms_must_have_pbc(dftbplus):
     with pytest.raises(TypeError, match="pbc"):
-        validate(make_spec(), schema, atoms=object())
+        validate(dftb_spec(), dftbplus, atoms=object())
 
 
-def test_raw_is_ignored(schema):
-    spec = make_spec(raw={"NotAnOption": -1, "SCF": "anything"})
-    assert validate(spec, schema) == []
+def test_pbc_may_be_a_single_flag(dftbplus):
+    """A bool ``pbc``, as some geometry objects expose, is read like a sequence."""
 
+    class Flagged:
+        pbc = True
 
-def test_strict_mode_raises_all_issues(schema):
-    spec = make_spec(method="CCSD", module="MD")
-    with pytest.raises(ValidationError, match="method") as excinfo:
-        validate(spec, schema, mode="strict")
-    assert "module" in str(excinfo.value)
-
-
-def test_warn_mode_warns_and_returns_issues(schema):
-    with pytest.warns(UserWarning, match="module"):
-        issues = validate(make_spec(module="MD"), schema, mode="warn")
-    assert len(issues) == 1
-    assert isinstance(issues[0], Issue)
-    assert issues[0].level == "error"
-
-
-def test_off_mode_does_nothing(schema):
-    assert validate(make_spec(method="CCSD"), schema, mode="off") == []
-
-
-def test_unknown_mode(schema):
-    with pytest.raises(ValueError, match="mode"):
-        validate(make_spec(), schema, mode="lenient")
+    spec = dftb_spec(KPOINTS={"SupercellFolding": FOLDING})
+    assert validate(spec, dftbplus, atoms=Flagged()) == []
+    assert validate(spec, dftbplus, atoms=Atoms("H", pbc=True, cell=[3, 3, 3])) == []

@@ -22,9 +22,9 @@ class DftbPlus(FileIOSoftware):
     """DFTB+ 25.1, registered as ``DFTBP``.
 
     The program reads ``dftb_in.hsd`` in its working directory and writes its log
-    on the standard output, which AMAC redirects to ``dftb.out``. The Slater-Koster
-    directories (``DFTB_PREFIX``, ``DFTBPLUS_PARAM_DIR``) are never guessed: they
-    come from ``env=`` or from the configuration file, like every other variable.
+    on the standard output, which AMAC redirects to ``dftb.out``. The directory of
+    the Slater-Koster files is never guessed: the composer writes it as ``Prefix``
+    from ``BASIS`` in the ``env`` of DFTB+ in the configuration file.
     """
 
     NAME = "DFTBP"

@@ -357,7 +357,7 @@
             "ARGUMENTS": {
                 "PTYPE": {
                     "TYPE": "STRING",
-                    "DEFAULT": "BIO",
+                    "MANDATORY": true,
                     "ALIASES": [
                         "SKTYPE"
                     ],
@@ -366,18 +366,9 @@
                         "PTYPE"
                     ],
                     "DESCRIPTION": "Name of the parameterisation, e.g. BIO or MAT."
-                },
-                "SKFILE": {
-                    "TYPE": "STRING",
-                    "MANDATORY": true,
-                    "PATH": [
-                        "BASIS",
-                        "SKFILE"
-                    ],
-                    "DESCRIPTION": "Directory holding the Slater-Koster files. AMAC never guesses it."
                 }
             },
-            "DESCRIPTION": "Slater-Koster parameters, handed to the library as BASIS. Every deMonNano run needs them."
+            "DESCRIPTION": "Slater-Koster parameters, handed to the library as BASIS. Every deMonNano run needs them. SKFILE is not accepted in the spec: AMAC writes it from BASIS in the env of DEMON in config-amac.json."
         },
         "REFERENCE": {
             "TYPE": "BLOCK",
@@ -395,7 +386,6 @@
             },
             "VARIANTS": {
                 "RESTRICTED": {
-                    "CANONICAL": "RESTRICTED",
                     "ALIASES": [
                         "CLOSED_SHELL"
                     ],

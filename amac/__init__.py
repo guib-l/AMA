@@ -2,34 +2,48 @@
 
 Two ways to run a calculation:
 
-- :class:`AMAC` is fully explicit and never reads the configuration below;
+- :class:`AMAC` is fully explicit: it ignores the defaults of :func:`configure`;
 - the facade (:func:`configure`, :func:`calculator`, :func:`run`) keeps module-level
   state: the configured defaults and a *current calculator*. This state is global to
   the process and not thread-safe.
 
+AMAC reads no environment variable. The machine configuration file
+(``amac.config``) is given explicitly, to one calculator with
+``AMAC(config=...)`` or to the whole process with :func:`set_config`, which
+:func:`configure` also accepts as ``config=``; without any of them AMAC has no
+configuration at all.
+
 Executable resolution, first source set wins:
 
 1. explicit ``executable=``, then :func:`configure` (facade only);
-2. environment variable ``Software.EXECUTABLE_ENV`` (e.g. ``ORCA_EXECUTABLE``);
-3. ``executable`` of ``[software.<NAME>]`` in the machine configuration file,
-   ``$AMAC_CONFIG`` or ``$XDG_CONFIG_HOME/amac/config.toml`` (see ``amac.config``).
+2. ``executable`` of ``[software.<NAME>]`` in the configuration file.
 
 AMAC never searches ``PATH``: the executable must be an absolute path (``~`` is
-expanded). Sources 2-3 are only read by ``Software.locate_executable``, when the
+expanded). Source 2 is only read by ``Software.locate_executable``, when the
 command is built, so both paths share the same rule. The ``env`` of the
 configuration file is added to the runs of the software, below ``exec_spec.env``.
-:func:`which` shows which executable the explicit sources give.
+:func:`which` shows which executable the configuration file gives.
+
+Where the files are written is always ``workdir``, given to :class:`AMAC`, to
+:func:`configure`, to one ``execute()`` call, or as the ``workdir`` of the
+configuration file; it is never taken from the environment. ``AMAC.workdir``
+gives the root as an absolute path,
+``AMAC.directories`` the run directories of the last call, and each run logs its
+directory on the ``"amac.amac"`` logger at ``INFO``. As a library AMAC installs no
+handler, so that line appears once the program calls ``logging.basicConfig()``.
 """
 
 from __future__ import annotations
 
 import difflib
+import logging
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, fields
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from amac.amac import AMAC, _check_names, reprocess
-from amac.config import clear_config_cache
+from amac.config import clear_config_cache, set_config
 from amac.engine.drivers import validate_driver_name
 from amac.engine.registry import get_software
 from amac.exceptions import (
@@ -54,6 +68,9 @@ if TYPE_CHECKING:
 
 __version__ = "0.1.1"
 
+# A library never writes on its own: the runs are logged, printing is the caller's.
+logging.getLogger(__name__).addHandler(logging.NullHandler())
+
 __all__ = [
     "AMAC",
     "AMACError",
@@ -71,6 +88,7 @@ __all__ = [
     "reprocess",
     "reset_configuration",
     "run",
+    "set_config",
     "which",
 ]
 
@@ -103,6 +121,7 @@ def configure(
     executable: str | None = None,
     driver: str | None = None,
     validate: str | None = None,
+    config: str | Path | None = None,
     **defaults: Any,
 ) -> None:
     """Set defaults used by :func:`calculator`; successive calls add up.
@@ -113,6 +132,10 @@ def configure(
     :func:`calculator` win over both. :class:`AMAC` created directly ignores this
     configuration, and existing calculators are not changed.
 
+    ``config`` is the exception: it calls :func:`set_config`, which every
+    calculator of the process uses, including :class:`AMAC` created directly and
+    the existing ones, unless they were given their own ``config=``.
+
     Args:
         software: Name or alias of a registered software.
         executable: Executable of ``software``.
@@ -120,6 +143,8 @@ def configure(
             checked here; its availability is checked by :func:`calculator`.
         validate: Validation mode given to the calculators: ``"strict"``,
             ``"warn"`` or ``"off"``.
+        config: Configuration file of the process (see :func:`set_config`);
+            ``None`` leaves it unchanged.
         **defaults: ``ExecutionSpec`` fields, e.g. ``cpu``, ``ram``, ``workdir``.
 
     Raises:
@@ -135,6 +160,8 @@ def configure(
         raise ValueError(
             f"Unknown validation mode {validate!r}; expected one of {', '.join(MODES)}"
         )
+    if config is not None:
+        set_config(config)
     _check_names(defaults, _EXEC_FIELDS - _PER_SOFTWARE, _EXEC_FIELDS)
     ExecutionSpec(**defaults)  # Fails early on the values ExecutionSpec checks.
     settings = dict(defaults)
@@ -153,25 +180,30 @@ def configure(
 
 
 def reset_configuration() -> None:
-    """Forget everything set by :func:`configure` and the configuration file read.
+    """Forget everything set by :func:`configure` and the configuration file.
 
-    The configuration file is read again when next needed; the current calculator
-    is kept.
+    The file of :func:`set_config` is forgotten too, so the process is left
+    without any configuration; the current calculator is kept.
     """
     _STATE.defaults.clear()
     _STATE.software.clear()
+    set_config(None)
     clear_config_cache()
 
 
-def which(software: str) -> ExecutableLocation | None:
+def which(
+    software: str, config: str | Path | None = None
+) -> ExecutableLocation | None:
     """Locate the executable of a software, to check an installation.
 
-    :func:`configure` is ignored: the sources are the environment variable and
-    the configuration file; ``PATH`` is never searched (see
+    The ``executable`` of :func:`configure` is ignored: the only source is the
+    configuration file; ``PATH`` is never searched (see
     ``Software.locate_executable``).
 
     Args:
         software: Name or alias of a registered software.
+        config: Configuration file to read; ``None`` uses the one of
+            :func:`set_config`.
 
     Returns:
         The executable and its source, ``None`` when no source gives one. The
@@ -179,9 +211,9 @@ def which(software: str) -> ExecutableLocation | None:
 
     Raises:
         SoftwareNotFoundError: If ``software`` is not registered.
-        ConfigurationError: If the configuration file is invalid.
+        ConfigurationError: If the configuration file is missing or invalid.
     """
-    return get_software(software)().locate_executable(ExecutionSpec())
+    return get_software(software)(config).locate_executable(ExecutionSpec())
 
 
 def calculator(
@@ -199,8 +231,9 @@ def calculator(
         platform: Name or alias of the software.
         handlers: Handlers given to :meth:`AMAC.handler_properties`, if any.
         skip_incompatible: Passed to :meth:`AMAC.handler_properties`.
-        **kwargs: ``validate`` and ``ExecutionSpec`` fields (``cpu``, ``workdir``,
-            ``executable``, ``driver``, ...); they win over :func:`configure`.
+        **kwargs: ``config``, ``validate`` and ``ExecutionSpec`` fields (``cpu``,
+            ``workdir``, ``executable``, ``driver``, ...); they win over
+            :func:`configure`.
 
     Returns:
         The calculator, now current.

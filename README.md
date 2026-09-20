@@ -8,9 +8,8 @@ parameters). AMAC validates it against the `doc.json` of the chosen software,
 writes the input, runs the program, extracts the requested properties with
 *handlers*, and stores the results with their provenance.
 
-> **Status:** the generic core works end to end with two test programs, `DUMMY`
-> (file based) and `DUMMY_INPROCESS` (in process). No real software (ORCA,
-> Gaussian, DFTB+, ...) can run yet: see [Project status](#project-status).
+> **Status:** two software are registered, `DFTBP` (DFTB+, file based) and
+> `DEMON` (deMonNano, in process). See [Project status](#project-status).
 
 ## Installation
 
@@ -20,7 +19,7 @@ install it from a checkout of the repository.
 ```bash
 python -m pip install -e .              # numpy, ase
 python -m pip install -e ".[test]"      # the above, plus pytest
-python -m pip install -e ".[parsers]"   # optional driver libraries: orca, parsers, dftbplus
+python -m pip install -e ".[dftbplus]"  # the above, plus the hsd library of DFTB+
 ```
 
 Run your scripts from the repository root with `python -m ...`, or add the root to
@@ -31,28 +30,40 @@ Run your scripts from the repository root with `python -m ...`, or add the root 
 With the `AMAC` class:
 
 ```python
-from ase import Atoms
+from ase.build import molecule
 
 import amac
 from amac import AMAC
-from amac.assets import _dummy
+from amac.assets import dftbplus
 
-water = Atoms("OH2", positions=[[0, 0, 0], [0.76, 0.59, 0], [-0.76, 0.59, 0]])
+water = molecule("H2O")
+
+# Machine configuration of every calculator of this process; AMAC(config=...)
+# gives one calculator its own file.
+amac.set_config("config-amac.json")
 
 calc = AMAC(
-    software="dummy",
-    validate="off",  # the dummy software has no doc.json
-    method="DFT",
-    method_args={"variant": "PBE"},
+    software="DFTB+",
+    method="TIGHT_BINDING",
+    method_args={
+        "variant": "DFTB2",  # SCC-DFTB; the variant sets SCC = Yes by itself
+        "SCCTolerance": 1e-6,
+        "MaxAngularMomentum": {"O": "p", "H": "s"},
+    },
     module="SINGLE_POINT",
-    parameters={"BASIS": "sto-3g", "SCF": {"MaxIter": 200}},
+    parameters={
+        # Prefix is written from BASIS in the configuration file, never here.
+        "SLATER_KOSTER_FILES": {"variant": "Type2FileNames"},
+        "ANALYSIS": {"MullikenAnalysis": True, "Printforces": True},
+        "OPTIONS": {"WriteResultsTag": True},
+    },
     cpu=2,
     workdir="runs",
     label="water",
 )
 calc.handler_properties(
-    _dummy.energy,
-    _dummy.forces,
+    dftbplus.energy,
+    dftbplus.forces,
     ("atom_count", lambda ctx: len(ctx.atoms)),  # custom handler
 )
 result = calc.execute(water)  # runs in runs/water
@@ -62,20 +73,23 @@ path = calc.store("water-results")  # writes water-results.json
 [reloaded] = amac.load(path)
 ```
 
+The executable and `BASIS` come from the configuration file (see
+[Configuration and executables](#configuration-and-executables)); AMAC reads no
+environment variable and never searches `PATH`.
+
 With the module facade:
 
 ```python
 amac.configure(cpu=2, workdir="runs")
 amac.calculator(
     parameters={
-        "method": "DFT",
-        "method_args": {"variant": "PBE"},
-        "parameters": {"BASIS": "sto-3g"},
+        "method": "TIGHT_BINDING",
+        "method_args": {"variant": "DFTB2", "MaxAngularMomentum": {"O": "p", "H": "s"}},
+        "parameters": {"SLATER_KOSTER_FILES": {"variant": "Type2FileNames"}},
     },
-    platform="dummy",
-    validate="off",
+    platform="DFTB+",
     label="facade",
-    handlers=[_dummy.energy],
+    handlers=[dftbplus.energy],
 )
 results = amac.run([water, water])  # runs/facade/image_000 and image_001
 ```
@@ -83,8 +97,18 @@ results = amac.run([water, water])  # runs/facade/image_000 and image_001
 A complete script: `python examples/quickstart.py [WORKDIR]` (a temporary
 directory is used when `WORKDIR` is omitted).
 
-Illustrative examples with the real programs (ORCA, Gaussian, DFTB+, deMonNano,
-PySCF, OPI), which cannot run yet: [`examples/usage/`](examples/usage/README.md).
+Examples with the real programs (DFTB+, deMonNano): [`examples/`](examples/). They
+take their configuration file from `--config=PATH`, and from the
+`config-amac.json` of this repository without it; AMAC itself reads no
+environment variable:
+
+```bash
+python examples/quickstart.py
+python examples/dftbplus_02_molecular_optimisation.py ~/runs --config=/etc/amac.json
+```
+
+Without a file giving the program they stop and print the command to run;
+nothing is guessed.
 
 ## Concepts
 
@@ -99,7 +123,7 @@ PySCF, OPI), which cannot run yet: [`examples/usage/`](examples/usage/README.md)
 
 Names and aliases are resolved case-insensitively against the `doc.json` of the
 software, whose format is described in
-[`amac/assets/DOC_SCHEMA.md`](amac/assets/DOC_SCHEMA.md): variants of methods,
+[`DOC_SCHEMA.md`](DOC_SCHEMA.md): variants of methods,
 modules and options, values imposed by a variant (`SETS`), companion parameters
 (`COMPANION`) and arguments shared by every choice (`COMMON_ARGUMENTS`). The spec is
 translated into a software-independent intermediate tree
@@ -123,10 +147,10 @@ The exceptions are exported by the package: `amac.AMACError` (base class),
 ```python
 try:
     AMAC(
-        software="dummy",  # no doc.json: refused in "strict" mode
-        method="DFT",
-        method_args={"variant": "PBE"},
-        parameters={"BASIS": "sto-3g"},
+        software="DFTB+",
+        method="TIGHT_BINDING",
+        method_args={"variant": "DFTB9"},  # no such variant: refused in "strict"
+        parameters={"SLATER_KOSTER_FILES": {"variant": "Type2FileNames"}},
     )
 except amac.ValidationError as error:
     print(error)
@@ -139,7 +163,7 @@ its result is the handler name.
 
 - Handlers of a software are declared with
   `@handler(software=..., requires_files=(), modules=None, drivers=None)` and
-  exposed by the package of the software, e.g. `_dummy.energy`.
+  exposed by the package of the software, e.g. `dftbplus.energy`.
 - A custom handler is a function (named after its `__name__`) or a
   `(name, callable)` tuple; a lambda needs a tuple. `@handler(software=None, ...)`
   gives a custom handler metadata such as `requires_files` without attaching it to
@@ -156,16 +180,15 @@ its result is the handler name.
 
 ```python
 calc = AMAC(
-    software="dummy",
-    validate="off",
-    method="DFT",
-    method_args={"variant": "PBE"},
-    parameters={"BASIS": "sto-3g"},
+    software="DFTB+",
+    method="TIGHT_BINDING",
+    method_args={"variant": "DFTB2", "MaxAngularMomentum": {"O": "p", "H": "s"}},
+    parameters={"SLATER_KOSTER_FILES": {"variant": "Type2FileNames"}},
     workdir="runs",
     label="concepts",
     raise_on_error=False,
 )
-calc.handler_properties(_dummy.energy, ("broken", lambda ctx: 1 / 0))
+calc.handler_properties(dftbplus.energy, ("broken", lambda ctx: 1 / 0))
 result = calc.execute(water, cpu=4)  # overrides for this call only
 assert result.success and "broken" not in result.properties
 print(result.errors[0])  # Handler 'broken' failed: ZeroDivisionError(...)
@@ -184,6 +207,28 @@ print(result.errors[0])  # Handler 'broken' failed: ZeroDivisionError(...)
   `provenance["spec"]`.
 - `outdir` receives a copy of each run directory; `keep_files=False` removes the run
   directory once the handlers have run.
+- Where the files go is always `workdir`, given to `AMAC(...)`, to
+  `amac.configure()`, to one `execute()` call, or as the `workdir` of the
+  configuration file; AMAC reads no environment variable for it. `calc.workdir`
+  gives the root as an absolute path,
+  `calc.directories` the run directories of the last call, and each run logs its
+  own on the `amac.amac` logger at `INFO`:
+
+  ```python
+  import logging
+
+  logging.basicConfig(level=logging.INFO)   # AMAC installs no handler itself
+  calc = AMAC(software="DFTB+", workdir="~/amac-runs", label="water", **CALCULATION)
+  calc.execute([water, water])
+  # INFO:amac.amac:DFTBP: run directory /home/me/amac-runs/water/image_000 (image 0)
+  # INFO:amac.amac:DFTBP: run directory /home/me/amac-runs/water/image_001 (image 1)
+  print(calc.workdir, calc.directories)
+  ```
+
+  Without any of them, the runs go to the current directory. The examples follow
+  the same convention: they take their root from their first argument, then
+  `~/amac-runs`, and print it before running
+  (`python examples/dftbplus_02_molecular_optimisation.py /data/runs`).
 - `timeout` kills the whole process group. `OMP_NUM_THREADS` is set to `cpu` unless
   `env` overrides it.
 - `raise_on_error=True` (default) raises a `RunError` at the first failing image,
@@ -198,18 +243,17 @@ print(result.errors[0])  # Handler 'broken' failed: ZeroDivisionError(...)
 
 ```python
 scan = AMAC(
-    software="dummy",
-    validate="off",
-    method="DFT",
-    method_args={"variant": "PBE"},
-    parameters={"BASIS": "sto-3g"},
+    software="DFTB+",
+    method="TIGHT_BINDING",
+    method_args={"variant": "DFTB2", "MaxAngularMomentum": {"O": "p", "H": "s"}},
+    parameters={"SLATER_KOSTER_FILES": {"variant": "Type2FileNames"}},
     workdir="runs",
     label="scan",
 )
-scan.handler_properties(_dummy.energy)
-images = [water, (water, {"method_args": {"Charge": 1}})]
+scan.handler_properties(dftbplus.energy)
+images = [water, (water, {"method_args": {"SCCTolerance": 1e-8}})]
 results = scan.execute(images)
-assert results[1].provenance["spec"]["method_args"]["Charge"] == 1
+assert results[1].provenance["spec"]["method_args"]["SCCTolerance"] == 1e-8
 ```
 
 ### Reprocessing
@@ -223,8 +267,8 @@ Handlers reading native objects of a library fail with a `HandlerError` unless t
 driver rebuilds them when collecting.
 
 ```python
-again = scan.reprocess(results[0].context.directory, handlers=[_dummy.forces])
-print(again.properties)  # {'forces': []}
+again = scan.reprocess(results[0].context.directory, handlers=[dftbplus.charges])
+print(again.properties)  # {'charges': array([-0.59, 0.29, 0.29])}
 ```
 
 ### Configuration and executables
@@ -233,7 +277,9 @@ print(again.properties)  # {'forces': []}
 `AMAC` object created directly never reads it. It sets execution defaults,
 `validate`, and per software the executable and the driver. Defaults apply in this
 order: global `configure()` < `configure(software=...)` < keyword arguments of
-`calculator()`. The facade state is global to the process and not thread-safe.
+`calculator()`. The facade state is global to the process and not thread-safe. Its
+only process-wide setting is `configure(config=...)`, which calls
+`amac.set_config()` and therefore reaches every calculator.
 
 The executable is resolved by `Software.locate_executable` when the command is
 built. It only comes from an explicit source, the first one set wins; **AMAC never
@@ -242,48 +288,76 @@ searches `PATH`**, and the executable must be an absolute path (`~` is expanded)
 | # | Source | Provenance `source` |
 |---|---|---|
 | 1 | `executable=`, then `amac.configure(software=..., executable=...)` (facade only) | `executable=` |
-| 2 | Environment variable `Software.EXECUTABLE_ENV`, `"<NAME>_EXECUTABLE"` by default (e.g. `ORCA_EXECUTABLE`) | `env:ORCA_EXECUTABLE` |
-| 3 | `executable` of `[software.<NAME>]` in the machine configuration file | `file:<path>` |
+| 2 | `executable` of `[software.<NAME>]` in the machine configuration file | `file:<path>` |
 
-The configuration file is `$AMAC_CONFIG` when set, otherwise
-`$XDG_CONFIG_HOME/amac/config.toml` (`~/.config/amac/config.toml` by default); a
-missing default file is ignored. Sections are named after a software or one of its
-aliases; only `executable` and `env` are accepted:
+**AMAC reads no environment variable.** The configuration file is always given
+explicitly, as a JSON file:
 
-```toml
-[software.ORCA]
-executable = "/opt/orca-6.1.0/orca"
-env = { LD_LIBRARY_PATH = "/opt/openmpi-4.1/lib" }
+| Given to | How | Wins over |
+|---|---|---|
+| One calculator | `AMAC(config=...)`, `amac.calculator(..., config=...)`, `amac.which(name, config=...)` | the file of the process |
+| The process | `amac.set_config(path)`, `amac.configure(config=...)` | nothing |
 
-[software."DFTB+"]
-executable = "~/opt/dftbplus/bin/dftb+"
-env = { DFTB_PREFIX = "/data/slako/3ob-3-1/" }
+Without either there is simply no configuration: no executable and no `env` are
+found, and `execute()` raises `ExecutableNotFoundError` when it needs one.
+`amac.set_config(None)` and `amac.reset_configuration()` forget the file again. A
+file that is given but does not exist raises `ConfigurationError`.
+
+The objects of `software` are named after a software or one of its aliases; only
+`executable` and `env` are accepted, and the top level also takes `workdir`:
+
+```json
+{
+    "workdir": "~/amac-runs",
+    "software": {
+        "DFTB+": {
+            "executable": "~/opt/dftbplus/bin/dftb+",
+            "env": {"BASIS": "/data/slako/3ob-3-1/"}
+        },
+        "deMonNano": {
+            "executable": "~/opt/demonnano/deMon.x",
+            "env": {"BASIS": "/data/demonnano/basis/"}
+        }
+    }
+}
 ```
 
-- A bare name such as `orca` or a relative path is rejected, whatever its source.
+- `workdir` is the default root of the run directories, used when no `workdir=`
+  is given; `~` is expanded and the result must be an absolute path.
+- A bare name such as `dftb+` or a relative path is rejected, whatever its source.
+- `BASIS` in the `env` of DFTB+ and deMonNano is the directory of the Slater-Koster
+  files, and its only source: DFTB+ gets it as `Prefix`, deMonNano as `SKFILE`.
+  Giving them in the spec is refused; a missing `BASIS` raises
+  `ConfigurationError`.
 - The `env` of the file is added to the runs: `os.environ` < `OMP_NUM_THREADS` <
   file `env` < `exec_spec.env`. Drivers get it in `execution_settings()["env"]`. It
   is never stored in `exec_spec`, `to_dict()` or the results.
-- Invalid TOML, an unknown section, key or software, a wrong type, two sections for
-  the same software, or a missing `$AMAC_CONFIG` raise `ConfigurationError`. The
-  file is read once; `amac.reset_configuration()` reads it again.
+- Invalid JSON, a top level that is not an object, an unknown section, key or
+  software, a wrong type, a relative `workdir`, two sections for the same
+  software, or a file that does not exist raise `ConfigurationError`. The file is
+  read once per path; `amac.reset_configuration()` reads it again.
 - For a software with `REQUIRES_EXECUTABLE` (every `FileIOSoftware` by default)
   running through the AMAC path, `execute()` raises `ExecutableNotFoundError`
   before creating any directory when no source gives an executable (the message
   lists the sources to set), when it is not an absolute path, or when it is not an
   executable file. The executable used is recorded in `ctx.metadata["executable"]`
   (`{"path": ..., "source": ...}`).
-- `amac.which("ORCA")` shows which executable sources 2 and 3 give.
+- `amac.which("DFTB+")` shows which executable the configuration file gives;
+  `amac.which("DFTB+", config=path)` reads the file of your choice.
 
 ```python
 amac.configure(timeout=600, validate="warn")  # every software
-amac.configure(software="dummy", driver="auto")  # this software only
+amac.configure(software="DFTB+", driver="auto")  # this software only
 configured = amac.calculator(
-    parameters={"method": "HF", "parameters": {"BASIS": "sto-3g"}},
-    platform="dummy",
+    parameters={
+        "method": "TIGHT_BINDING",
+        "method_args": {"variant": "DFTB2", "MaxAngularMomentum": {"O": "p", "H": "s"}},
+        "parameters": {"SLATER_KOSTER_FILES": {"variant": "Type2FileNames"}},
+    },
+    platform="DFTB+",
     timeout=60,  # wins over configure()
 )
-assert configured.exec_spec.timeout == 60 and configured.driver.name == "amac"
+assert configured.exec_spec.timeout == 60
 assert configured.validate == "warn"
 amac.reset_configuration()
 ```
@@ -318,10 +392,10 @@ requested driver) and the handlers; `AMAC.from_dict(data)` rebuilds the calculat
         {
             "success": true,
             "properties": {
-                "energy": -1.0,
+                "energy": -110.960395,
                 "forces": {"__ndarray__": [[0.0, 0.0, 0.1]], "dtype": "float64", "shape": [1, 3]}
             },
-            "provenance": {"software": "DUMMY", "driver": "amac", "directory": "runs/water", "start": "2026-09-13T12:00:00+00:00", "...": "..."},
+            "provenance": {"software": "DFTBP", "driver": "amac", "directory": "runs/water", "start": "2026-09-13T12:00:00+00:00", "...": "..."},
             "errors": [{"type": "HandlerError", "message": "...", "handler": "broken"}]
         }
     ]
@@ -347,7 +421,7 @@ requested driver) and the handlers; `AMAC.from_dict(data)` rebuilds the calculat
 path = calc.store("concepts-results")
 [reloaded] = amac.load(path)
 assert reloaded.errors[0]["handler"] == "broken"
-print(amac.reprocess(reloaded, [_dummy.forces]).properties)  # {'forces': []}
+print(amac.reprocess(reloaded, [dftbplus.forces]).properties)  # {'forces': array(...)}
 ```
 
 ### Canonical catalog
@@ -364,8 +438,8 @@ entries.
 ## Adding a software
 
 1. **Create its package** `amac/assets/<software>/`, named after the software in
-   lowercase (`orca`, `gaussian`, `dftbplus`, `demonnano`), and **describe it** in
-   its `doc.json`, following [`DOC_SCHEMA.md`](amac/assets/DOC_SCHEMA.md): syntax
+   lowercase (`dftbplus`, `demonnano`), and **describe it** in
+   its `doc.json`, following [`DOC_SCHEMA.md`](DOC_SCHEMA.md): syntax
    family, modules, methods, parameters, output files. A future PySCF package keeps
    the name `amac.assets.pyscf`: imports are absolute, so `import pyscf` inside it
    still designates the library, which is only imported by the software module.
@@ -380,10 +454,16 @@ entries.
 
 
    class MySoftComposer(Composer):
-       def compose(self, spec, schema, atoms, exec_spec):
-           tree = self.build_tree(spec, schema, exec_spec)  # translate() + cpu/ram
+       def compose(self, spec, schema, atoms, exec_spec, tree=None):
+           # tree is the one AMAC already built for this image; build_tree() only
+           # translates the spec when it is None (composer called outside a run).
+           tree = self.build_tree(spec, schema, exec_spec, tree)
            return {schema.input["FILENAME"]: render(tree, atoms)}
    ```
+
+   The composer works on that tree in place: what it completes, such as the
+   options the software needs for its results to be read back, ends up in
+   `ctx.metadata["input_tree"]` and therefore in the provenance.
 
 3. **Subclass `FileIOSoftware`** and register it:
 
@@ -400,7 +480,6 @@ entries.
        ALIASES = ("my-soft",)
        DOC = Path(__file__).with_name("doc.json")
        composer_cls = MySoftComposer  # None: dispatch on the doc.json SYNTAX
-       EXECUTABLE_ENV = "MYSOFT_BIN"  # default: "MYSOFT_EXECUTABLE"
 
        def command(self, ctx):
            executable = self.require_executable(ctx.exec_spec).path
@@ -413,7 +492,7 @@ entries.
    A software driven through a Python API subclasses `InProcessSoftware` instead:
    `build(ctx)` creates the native objects in `ctx.objects`, `compute(ctx)` runs
    them, `collect(ctx)` stores what the handlers need. See
-   `amac/assets/_dummy/inprocess.py`.
+   `amac/assets/demonnano/demonnano.py`.
 
 4. **Declare its handlers** in a module imported *after* the software, since
    `@handler` resolves the software through the registry at import time, and expose
@@ -445,24 +524,22 @@ entries.
    | `hessian` | Hessian matrix |
 
    Handlers return ASE units (eV, Å): the normalized dataclass of a software keeps
-   the units of the program, and the handlers convert them. DFTB+ and ORCA follow
-   this rule today; the other packages will as they are written.
+   the units of the program, and the handlers convert them. DFTB+ and deMonNano
+   follow this rule today; the other packages will as they are written.
 
 5. **Import the software module** explicitly in `amac/assets/__init__.py` (there is
    no filesystem scan).
 
-The dummy software (`amac/assets/_dummy/`) is a complete minimal example of both
-kinds, without `doc.json`: `DummySoftware` writes its input in `prepare` and lists
-its output in `collect`, and its calculations run with `validate="off"`. The
-packages of DFTB+ and ORCA are complete (`composer.py`, `parser.py`,
-`handlers.py`, `drivers.py`), and deMonNano is complete as an in-process software
-(`demonnano.py`, `parser.py`, `handlers.py`), driven by the `deMonPy` library;
-that of Gaussian exists but exposes no handler yet.
+Two software are registered today. DFTB+ (`amac/assets/dftbplus/`) is the complete
+example of a file-based software (`composer.py`, `parser.py`, `handlers.py`,
+`drivers.py`), and deMonNano (`amac/assets/demonnano/`) that of an in-process
+software (`demonnano.py`, `parser.py`, `handlers.py`), driven by the `deMonPy`
+library.
 
 ## Using a dedicated library
 
-Some programs have a Python library: OPI for ORCA, the DFTB+ API, AbiPy for
-Abinit. A software may declare *drivers* (`Software.DRIVERS`) that use such a
+Some programs have a Python library: the DFTB+ API, `deMonPy` for deMonNano,
+AbiPy for Abinit. A software may declare *drivers* (`Software.DRIVERS`) that use such a
 library for some phases, while the AMAC path (composer, local executor, handlers)
 stays available everywhere.
 
@@ -473,9 +550,8 @@ stays available everywhere.
 | `"<name>"` | That driver: `DriverUnavailableError`, with the `pip install` command, when its library is missing or its environment incompatible; `ValueError` for an unknown name |
 
 - Libraries are never required. The known ones are declared as optional
-  dependencies in `pyproject.toml` (`orca`, `parsers`, `dftbplus`); a driver
-  imports its library inside its phases
-  only, so `import amac` works without them.
+  dependencies in `pyproject.toml` (`dftbplus`); a driver imports its library
+  inside its phases only, so `import amac` works without them.
 - `amac.configure(software=..., driver=...)` only checks the name; availability is
   checked when the calculator is created.
 - The driver is chosen once, when the calculator is created. There is no fallback
@@ -497,8 +573,8 @@ stays available everywhere.
 - The provenance records `driver`, `driver_version` and `driver_fallback`;
   `to_dict()` keeps the requested driver.
 
-Sketch of a driver, modelled on `DummyLibraryDriver` in
-`amac/assets/_dummy/dummy.py`:
+Sketch of a driver, modelled on `HsdDriver` in
+`amac/assets/dftbplus/drivers.py`:
 
 ```python
 from amac.engine.drivers import Driver
@@ -535,31 +611,34 @@ Implemented: canonical specs, `doc.json` loading and validation (variants, `SETS
 `COMPANION`, `COMMON_ARGUMENTS`), the intermediate tree, the local executor,
 handlers, the `AMAC` class with per-image overrides and reprocessing, the facade,
 JSON storage with provenance, optional library drivers (interface and selection),
-the canonical catalog and its equivalence tables, and the dummy programs (without
-`doc.json`) and driver used by the tests.
+the canonical catalog and its equivalence tables.
 
 Not implemented yet:
 
 - concrete composers for the `NAMELIST` and `FLAT` syntaxes (`KEYWORD_BLOCK` and
   `TREE` are implemented);
-- real software: DFTB+, ORCA and deMonNano are complete, with their `doc.json`;
+- real software: DFTB+ and deMonNano are complete, with their `doc.json`;
   deMonNano runs in process through the `deMonPy` library (`DeMonNanoPy`, installed
-  from its repository, not from PyPI); Gaussian is registered but its `command()`
-  raises `NotImplementedError` and it has no `doc.json`; PySCF and GPAW are not
+  from its repository, not from PyPI); ORCA, Gaussian, PySCF and GPAW are not
   started;
-- the OPI driver of ORCA and the AbiPy one: ORCA collects with `cclib`, DFTB+ has
-  its API and `hsd` drivers, and the tests use `dummy-lib`;
+- library drivers beyond DFTB+: it has its API and `hsd` drivers, the AbiPy one is
+  not started;
 - parallel images, HPC schedulers, restarts and chained calculations (chaining is
-  left to a workflow layer outside the core), so the external programs
-  `orca_plot`, `modes` and `waveplot` are not run;
+  left to a workflow layer outside the core), so the external post-processing
+  programs (`modes`, `waveplot`, ...) are not run;
 - the free-text `CONDITION` fields of the `doc.json`.
-
-`amac/engine/backend.py` is a legacy attribute proxy kept for reference; AMAC does
-not use it.
 
 ## Running the tests
 
 ```bash
-python -m pytest
-python examples/quickstart.py
+python -m pytest                                        # no program needed
+pytest -m real                                          # runs DFTB+ and deMonNano
+pytest -m real --amac-config=/path/to/config-amac.json  # another configuration
+ruff check amac test examples
 ```
+
+The suite needs no quantum chemistry program: the generic chain is exercised on
+the DFTB+ asset driven by a stub program written by the tests (`test/conftest.py`).
+The tests marked `real` run the programs of the configuration file
+(`--amac-config=PATH`, else the `config-amac.json` of the repository) and are
+skipped when it gives none.

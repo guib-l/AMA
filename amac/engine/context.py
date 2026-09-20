@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from amac.parameter.parameters import CalculationSpec, ExecutionSpec
 
 OUTPUT_KEY = "output"
+INPUT_TREE_KEY = "input_tree"
 
 
 @dataclass

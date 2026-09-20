@@ -36,8 +36,6 @@ dev = [
     "ruff>=0.15",
 ]
 # Libraries of the optional drivers; the DFTB+ Python API is installed with DFTB+.
-orca = ["orca-pi"]
-parsers = ["cclib"]
 dftbplus = ["hsd-python"]
 
 [tool.setuptools.dynamic]

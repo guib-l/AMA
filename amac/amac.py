@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import difflib
 import importlib
+import logging
 import socket
 import time
 import warnings
@@ -21,7 +22,8 @@ from typing import TYPE_CHECKING, Any, Self
 
 from ase import Atoms
 
-from amac.engine.context import Result, RunContext
+from amac.config import load_config
+from amac.engine.context import INPUT_TREE_KEY, Result, RunContext
 from amac.engine.drivers import select_driver
 from amac.engine.execute import finalize_run_directory, make_run_directory
 from amac.engine.handlers import resolve_handlers, run_handlers
@@ -42,8 +44,12 @@ if TYPE_CHECKING:
     from amac.parameter.schema import Schema
     from amac.parameter.validator import Issue
 
+# One line per run, at INFO: where the input and the output files are written.
+# A library configures no handler, so nothing is printed until the caller calls
+# logging.basicConfig() (see examples/common_01_executables.py).
+LOGGER = logging.getLogger(__name__)
+
 ENV_MASK = "***"
-INPUT_TREE_KEY = "input_tree"
 EXECUTABLE_KEY = "executable"
 IMAGE_OVERRIDE_KEYS = ("method_args", "module_args", "parameters", "raw")
 
@@ -58,6 +64,7 @@ _INIT_NAMES = (
     "parameters",
     "raw",
     "validate",
+    "config",
 )
 _DICT_KEYS = frozenset({"software", "validate", "spec", "exec_spec"})
 _OPTIONAL_DICT_KEYS = frozenset({"handlers"})
@@ -80,6 +87,9 @@ class AMAC:
             software without ``doc.json`` cannot be validated: ``"strict"`` raises,
             ``"warn"`` warns, ``"off"`` accepts it silently.
         platform: Alias of ``software``.
+        config: Configuration file of this calculator (``amac.config``); ``None``
+            uses the one of ``amac.set_config()``, and no configuration at all
+            without it. Its ``workdir`` is the default of ``workdir=``.
         **exec_kwargs: Fields of ``ExecutionSpec`` (``cpu``, ``workdir``, ``driver``,
             ...).
 
@@ -90,6 +100,7 @@ class AMAC:
         driver: Driver selected once from ``exec_spec.driver`` (see
             ``amac.engine.drivers.select_driver``); ``exec_spec`` keeps the
             requested name.
+        config: Configuration file given, as given.
         schema: Schema of the software, ``None`` when it has no ``doc.json``.
         validate: Validation mode.
         validated: Whether the calculations are validated (a ``doc.json`` exists
@@ -97,6 +108,8 @@ class AMAC:
         issues: Issues found by the validation of the spec (``"warn"`` mode).
         handlers: Handlers set by :meth:`handler_properties`.
         results: Results of the last :meth:`execute`.
+        workdir: Root directory of the runs, absolute (read-only).
+        directories: Run directories of the last :meth:`execute` (read-only).
 
     Raises:
         TypeError: If both or none of ``software`` and ``platform`` are given, or if
@@ -104,7 +117,8 @@ class AMAC:
         ValueError: If ``validate`` or the driver is unknown, or if an execution
             field is invalid.
         SoftwareNotFoundError: If the software is not registered.
-        ConfigurationError: If the environment cannot run the software (see
+        ConfigurationError: If ``config`` names a missing or invalid file, or if
+            the environment cannot run the software (see
             ``Software.check_environment``, called before the validation and the
             selection of the driver).
         DriverUnavailableError: If the requested driver cannot be used.
@@ -125,6 +139,7 @@ class AMAC:
         raw: RawKeywords = None,
         validate: str = "strict",
         platform: str | None = None,
+        config: str | Path | None = None,
         **exec_kwargs: Any,
     ) -> None:
         if (software is None) == (platform is None):
@@ -138,10 +153,15 @@ class AMAC:
         self.spec = CalculationSpec.from_kwargs(
             method, method_args, module or DEFAULT_MODULE, module_args, parameters, raw
         )
+        self.config = config
+        if "workdir" not in exec_kwargs:
+            # The configuration file gives the root of the runs when nothing else does.
+            if (workdir := load_config(config).workdir) is not None:
+                exec_kwargs["workdir"] = workdir
         self.exec_spec = ExecutionSpec(**exec_kwargs)
         self.validate = validate
         software_cls = get_software(platform if software is None else software)
-        self.software = software_cls()
+        self.software = software_cls(config)
         self.software.check_environment()
         self.schema: Schema | None = None
         self.issues: list[Issue] = []
@@ -167,8 +187,36 @@ class AMAC:
         return (
             f"AMAC(software={self.software.name!r}, method={self.spec.method!r}, "
             f"module={self.spec.module!r}, driver={self.driver.name!r}, "
-            f"validate={self.validate!r})"
+            f"validate={self.validate!r}, workdir={str(self.workdir)!r})"
         )
+
+    @property
+    def workdir(self) -> Path:
+        """Root directory of the runs, as an absolute path.
+
+        This is ``exec_spec.workdir``, where :meth:`execute` creates
+        ``<label>/`` (or ``<label>/image_XXX/``). Without ``workdir=`` it is the
+        ``workdir`` of the configuration file, and the current directory without
+        one. A ``workdir=`` given to :meth:`execute` applies to that call only and
+        does not change it; :attr:`directories` then says where the last call
+        actually wrote.
+        """
+        return self.exec_spec.workdir.expanduser().resolve()
+
+    @property
+    def directories(self) -> list[Path]:
+        """Run directories of the last :meth:`execute`, in image order.
+
+        Empty before the first call. The directory of a run is also in
+        ``result.context.directory`` and in ``result.provenance["directory"]``;
+        it survives ``keep_files=False``, which removes the files but keeps the
+        path in the provenance.
+        """
+        return [
+            result.context.directory
+            for result in self.results
+            if result.context is not None
+        ]
 
     def handler_properties(
         self, *handlers: Any, skip_incompatible: bool = False
@@ -219,8 +267,10 @@ class AMAC:
         ``outdir``, removal unless ``keep_files``). A phase in ``PHASES`` of the
         selected driver goes through the driver; the other phases go through the
         software. When the software has a ``doc.json``, the intermediate tree of
-        the spec is in ``ctx.metadata["input_tree"]``, whatever the driver. The
-        effective spec is ``ctx.spec`` and ``provenance["spec"]``.
+        the spec is in ``ctx.metadata["input_tree"]``, whatever the driver: it is
+        built once per image, then handed to whatever prepares the input, which
+        completes it in place, so it holds the tree the input was written from.
+        The effective spec is ``ctx.spec`` and ``provenance["spec"]``.
 
         When a ``FILEIO`` software runs through the AMAC path, its executable is
         located once per call, before any directory is created (see
@@ -357,8 +407,10 @@ class AMAC:
     def to_dict(self, mask_secrets: bool = True) -> dict[str, Any]:
         """Return the data rebuilding this calculator.
 
-        ``exec_spec`` holds the requested driver, not the selected one. Handlers are
-        stored as ``{"name": ..., "handler": "module:qualname"}`` when their function
+        ``exec_spec`` holds the requested driver, not the selected one. The
+        configuration file is left out, since it belongs to the machine: the
+        calculator rebuilt reads the one of the process (``amac.set_config``).
+        Handlers are stored as ``{"name": ..., "handler": "module:qualname"}`` when their function
         can be imported again; lambdas, local functions and functions of
         ``__main__`` are left out with a warning.
 
@@ -479,6 +531,12 @@ class AMAC:
             self._validate_geometry(atoms)
         start, clock = datetime.now(UTC), time.perf_counter()
         directory = make_run_directory(exec_spec, image)
+        LOGGER.info(
+            "%s: run directory %s%s",
+            self.software.name,
+            directory,
+            "" if image is None else f" (image {image})",
+        )
         ctx = self._context(atoms, spec, exec_spec, directory)
         if executable is not None:
             ctx.metadata[EXECUTABLE_KEY] = asdict(executable)

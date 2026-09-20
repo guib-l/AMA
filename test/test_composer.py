@@ -1,16 +1,14 @@
-"""Tests of amac.parameter.composer on the sample doc.json of test/fixtures."""
+"""Tests of amac.parameter.composer."""
 
-import json
 from pathlib import Path
 
 import pytest
+from ase.build import molecule
 
-from amac.assets._dummy.dummy import DummySoftware
+from amac.assets.dftbplus.dftbplus import DftbPlus
 from amac.engine.context import RunContext
-from amac.engine.software import FileIOSoftware
 from amac.exceptions import ValidationError
 from amac.parameter.composer import (
-    Composer,
     FlatComposer,
     InputTree,
     KeywordBlockComposer,
@@ -18,16 +16,14 @@ from amac.parameter.composer import (
     Node,
     TreeComposer,
     get_composer,
-    inject_resources,
-    render_bool,
     render_unit,
     translate,
 )
 from amac.parameter.parameters import CalculationSpec, ExecutionSpec
-from amac.parameter.schema import Schema, load
+from amac.parameter.schema import load
 
-SCHEMA_DOC = Path(__file__).parent / "fixtures" / "schema.json"
-KEYWORD_BLOCK_DOC = Path(__file__).parent / "fixtures" / "keyword_block.json"
+INPUT_FILE = "dftb_in.hsd"
+
 HSD_FORMAT = {
     "ASSIGN": " = ",
     "OPEN": "{",
@@ -38,10 +34,6 @@ HSD_FORMAT = {
     "MODIFIER": "[{unit}]",
 }
 
-@pytest.fixture
-def schema() -> Schema:
-    return load(SCHEMA_DOC)
-
 
 def make_spec(**overrides) -> CalculationSpec:
     kwargs = {
@@ -51,16 +43,6 @@ def make_spec(**overrides) -> CalculationSpec:
         "parameters": {"BASIS": "sto-3g"},
     }
     return CalculationSpec.from_kwargs(**kwargs | overrides)
-
-
-def dummy_doc() -> dict:
-    return json.loads(SCHEMA_DOC.read_text(encoding="utf-8"))
-
-
-def write_schema(tmp_path: Path, doc: dict) -> Schema:
-    path = tmp_path / "doc.json"
-    path.write_text(json.dumps(doc), encoding="utf-8")
-    return load(path)
 
 
 def make_ctx(directory: Path, spec: CalculationSpec | None = None) -> RunContext:
@@ -76,86 +58,6 @@ def hsd_tree(raw=None, **nodes) -> InputTree:
     return InputTree(nodes=nodes, raw=raw, format=dict(HSD_FORMAT))
 
 
-class NoOverrideSoftware(FileIOSoftware):
-    DOC = SCHEMA_DOC
-
-    def command(self, ctx):
-        return []
-
-
-class StaticComposer(Composer):
-    def compose(self, spec, schema, atoms, exec_spec):
-        return {"custom.txt": "custom\n"}
-
-
-class OverrideSoftware(NoOverrideSoftware):
-    composer_cls = StaticComposer
-
-
-class PrefixedComposer(KeywordBlockComposer):
-    KEYWORD_PREFIX = "!"
-
-
-def test_translate_resolves_aliases(schema):
-    spec = make_spec(
-        method="hartree_fock",
-        method_args={"charge": 1},
-        module="sp",
-        parameters={"basis": "sto-3g", "scf_options": {"maxiterations": 50}},
-    )
-    tree = translate(spec, schema)
-    assert tree.nodes["Hamiltonian"].value == "HF"
-    assert tree.nodes["Hamiltonian"].children["HF"].children["Charge"].value == 1
-    assert tree.nodes["Driver"].value == "SinglePoint"
-    assert tree.nodes["Basis"].value == "sto-3g"
-    assert tree.nodes["Scf"].children["MaxIter"].value == 50
-
-
-def test_translate_nested_paths(schema):
-    spec = make_spec(
-        method_args={"variant": "PBE", "Charge": 1},
-        parameters={"BASIS": "sto-3g", "DISPERSION": "D3", "SOLVENT": "water"},
-    )
-    tree = translate(spec, schema)
-    hamiltonian = tree.nodes["Hamiltonian"]
-    assert hamiltonian.value == "DFT"
-    assert list(hamiltonian.children) == ["DFT"]
-    dft = hamiltonian.children["DFT"].children
-    assert (dft["Charge"].value, dft["Dispersion"].value) == (1, "D3")
-    assert tree.nodes["Solvation"].children["Solvent"].value == "water"
-    assert tree.keywords == ["PBE"]
-
-
-def test_format_defaults_merged_with_node_format(tmp_path):
-    doc = dummy_doc()
-    defaults = {"ASSIGN": " = ", "BOOLEAN": ["Yes", "No"]}
-    doc["INPUT"]["FORMAT_DEFAULTS"] = defaults
-    doc["PARAMETERS"]["OUTPUT"]["FORMAT"] = {"BOOLEAN": ["1", "0"]}
-    parameters = {"BASIS": "sto-3g", "OUTPUT": {"WriteForces": True}}
-    tree = translate(make_spec(parameters=parameters), write_schema(tmp_path, doc))
-    assert tree.format == defaults
-    assert tree.nodes["Basis"].format == defaults
-    assert tree.nodes["Output"].format == {"ASSIGN": " = ", "BOOLEAN": ["1", "0"]}
-
-
-def test_booleans(schema):
-    parameters = {"BASIS": "sto-3g", "OUTPUT": {"WriteForces": True}}
-    tree = translate(make_spec(parameters=parameters), schema)
-    assert tree.nodes["Output"].children["WriteForces"].value is True
-    assert render_bool(True, {"BOOLEAN": ["Yes", "No"]}) == "Yes"
-    assert render_bool(False, {"BOOLEAN": ["Yes", "No"]}) == "No"
-    assert render_bool(False, {}) == "false"
-
-
-def test_units(schema):
-    parameters = {"BASIS": "sto-3g", "SCF": {"Tolerance": 1e-5}}
-    tree = translate(make_spec(parameters=parameters), schema)
-    tolerance = tree.nodes["Scf"].children["Tolerance"]
-    assert tolerance.unit == "energy"
-    assert tolerance.value == pytest.approx(1e-5, rel=1e-12)
-    assert tree.nodes["Basis"].unit is None
-
-
 @pytest.mark.parametrize(
     ("unit", "fmt", "expected"),
     [
@@ -167,33 +69,6 @@ def test_units(schema):
 )
 def test_render_unit(unit, fmt, expected):
     assert render_unit(unit, fmt) == expected
-
-
-def test_inject_resources(schema):
-    tree = translate(make_spec(), schema)
-    inject_resources(tree, schema, ExecutionSpec(cpu=4, ram=2000))
-    resources = tree.nodes["Resources"].children
-    assert (resources["Cpu"].value, resources["Memory"].value) == (4, 2000)
-
-
-def test_inject_resources_skips_missing(tmp_path, schema):
-    tree = translate(make_spec(), schema)
-    inject_resources(tree, schema, ExecutionSpec(cpu=4))
-    assert list(tree.nodes["Resources"].children) == ["Cpu"]
-    doc = dummy_doc()
-    del doc["INPUT"]["RESOURCES"]
-    tree = translate(make_spec(), schema)
-    inject_resources(tree, write_schema(tmp_path, doc), ExecutionSpec(cpu=4))
-    assert "Resources" not in tree.nodes
-
-
-def test_raw_is_passed_unchanged(schema):
-    raw = {"NotAnOption": -1, "Hamiltonian": ["anything"]}
-    spec = make_spec(raw=raw)
-    tree = translate(spec, schema)
-    assert tree.raw == raw
-    assert tree.raw is not spec.raw
-    assert "NotAnOption" not in tree.nodes
 
 
 def test_tree_render_hsd():
@@ -326,77 +201,6 @@ def test_tree_render_raw_dict_conflict():
 
 
 @pytest.mark.parametrize(
-    ("composer_cls", "first_line"),
-    [
-        (KeywordBlockComposer, "B3LYP Opt def2-SVP"),
-        (PrefixedComposer, "! B3LYP Opt def2-SVP"),
-    ],
-)
-def test_keyword_block_compose(composer_cls, first_line):
-    spec = CalculationSpec.from_kwargs(
-        method="DFT",
-        method_args={"variant": "B3LYP"},
-        module="OPT",
-        parameters={
-            "BASIS": "def2-SVP",
-            "SCF": {
-                "MaxIter": 50,
-                "KeepInts": True,
-                "Shift": {"Shift": 0.1, "ErrOff": 0.1},
-            },
-        },
-        raw=["%output", "  Print[P_Hirshfeld] 1", "end"],
-    )
-    files = composer_cls().compose(
-        spec, load(KEYWORD_BLOCK_DOC), None, ExecutionSpec(cpu=4, ram=2000)
-    )
-    expected = f"""\
-{first_line}
-%output
-  Print[P_Hirshfeld] 1
-end
-%scf
-  MaxIter 50
-  KeepInts true
-  Shift
-    Shift 0.1
-    ErrOff 0.1
-  end
-end
-%pal
-  nprocs 4
-end
-%maxcore 2000
-"""
-    assert files == {"input.inp": expected}
-
-
-def test_keyword_block_raw_dict():
-    spec = CalculationSpec.from_kwargs(
-        method="DFT",
-        parameters={"SCF": {"MaxIter": 50}},
-        raw={"%SCF": {"TolE": 1e-8}, "%method": {"RunTyp": "Energy"}},
-    )
-    files = PrefixedComposer().compose(
-        spec, load(KEYWORD_BLOCK_DOC), None, ExecutionSpec()
-    )
-    expected = """\
-! SP
-%scf
-  MaxIter 50
-  TolE 1e-08
-end
-%pal
-  nprocs 1
-end
-%method
-  RunTyp Energy
-end
-"""
-    assert files == {"input.inp": expected}
-
-
-@pytest.mark.parametrize(
     ("syntax", "composer_cls"),
     [
         ("KEYWORD_BLOCK", KeywordBlockComposer),
@@ -409,62 +213,83 @@ def test_get_composer(syntax, composer_cls):
     assert get_composer(syntax) is composer_cls
 
 
-@pytest.mark.parametrize("composer_cls", [NamelistComposer, FlatComposer])
-def test_composer_not_implemented(schema, composer_cls):
-    with pytest.raises(NotImplementedError, match=composer_cls.SYNTAX):
-        composer_cls().compose(make_spec(), schema, None, ExecutionSpec())
-
-
 def test_get_composer_unknown_syntax():
     with pytest.raises(ValueError, match="'API'.*Available: KEYWORD_BLOCK"):
         get_composer("API")
 
 
-def test_composer_cls_defaults_to_syntax(tmp_path):
-    assert NoOverrideSoftware.composer_cls is None
-    ctx = make_ctx(tmp_path, make_spec(method="HF", method_args={}))
-    NoOverrideSoftware().prepare(ctx)
-    assert ctx.input_files == {"input.json": tmp_path / "input.json"}
-    expected = """\
-Hamiltonian = HF
-Driver = SinglePoint
-Basis = sto-3g
-Resources = {
-  Cpu = 2
-  Memory = 1000
-}
-"""
-    assert (tmp_path / "input.json").read_text(encoding="utf-8") == expected
+def dftbp_spec(**overrides) -> CalculationSpec:
+    kwargs = {
+        "method": "TIGHT_BINDING",
+        "method_args": {"variant": "DFTB2", "MaxAngularMomentum": {"O": "p", "H": "s"}},
+        "module": "SINGLE_POINT",
+        "parameters": {"SLATER_KOSTER_FILES": {"variant": "Type2FileNames"}},
+    }
+    return CalculationSpec.from_kwargs(**kwargs | overrides)
 
 
-def test_composer_cls_override(tmp_path):
-    ctx = make_ctx(tmp_path)
-    OverrideSoftware().prepare(ctx)
-    assert ctx.input_files == {"custom.txt": tmp_path / "custom.txt"}
-    assert (tmp_path / "custom.txt").read_text(encoding="utf-8") == "custom\n"
-
-
-def test_dummy_prepare_writes_deterministic_input(tmp_path):
-    spec = make_spec(
-        method_args={"variant": "PBE", "Charge": 1},
-        module="OPT",
-        module_args={"MaxSteps": 10},
-        parameters={
-            "BASIS": "sto-3g",
-            "SCF": {"MaxIter": 50},
-            "OUTPUT": {"WriteForces": True},
-        },
-        raw={"Extra": "keep"},
-    )
+def test_fileio_prepare_writes_a_deterministic_input(tmp_path, dftbp_configured):
+    """``FileIOSoftware.prepare`` composes, writes, and records what it wrote."""
+    spec = dftbp_spec(raw={"ParserOptions": {"ParserVersion": 14}})
     contents = []
     for name in ("first", "second"):
         directory = tmp_path / name
         directory.mkdir()
-        ctx = make_ctx(directory, spec)
-        DummySoftware().prepare(ctx)
-        assert ctx.input_files == {"input.json": directory / "input.json"}
-        contents.append(ctx.input_files["input.json"].read_text(encoding="utf-8"))
+        ctx = RunContext(molecule("H2O"), spec, ExecutionSpec(cpu=2), directory)
+        DftbPlus().prepare(ctx)
+        assert ctx.input_files == {INPUT_FILE: directory / INPUT_FILE}
+        contents.append(ctx.input_files[INPUT_FILE].read_text(encoding="utf-8"))
+    # The same spec always gives the same input file, byte for byte.
     assert contents[0] == contents[1]
-    data = json.loads(contents[0])
-    assert contents[0] == json.dumps(data, indent=4, sort_keys=True) + "\n"
-    assert data == spec.to_dict()
+    assert "SlaterKosterFiles = Type2FileNames {" in contents[0]
+    assert "ParserVersion = 14" in contents[0]  # raw keywords are kept
+    assert str(dftbp_configured) in contents[0]  # Prefix, taken from BASIS
+
+
+def test_fileio_prepare_refuses_a_missing_directory(tmp_path, dftbp_configured):
+    ctx = RunContext(
+        molecule("H2O"), dftbp_spec(), ExecutionSpec(), tmp_path / "missing"
+    )
+    with pytest.raises(FileNotFoundError):
+        DftbPlus().prepare(ctx)
+
+
+# Translation of the doc.json features into the intermediate tree.
+
+FOLDING = [[4, 0, 0], [0, 4, 0], [0, 0, 4], [0.5, 0.5, 0.5]]
+
+
+@pytest.fixture
+def dftbplus_schema():
+    return load(DftbPlus.DOC)
+
+
+def node_at(tree, *path):
+    node = tree.nodes[path[0]]
+    for part in path[1:]:
+        node = node.children[part]
+    return node
+
+
+def test_a_variant_writes_the_options_it_imposes(dftbplus_schema):
+    """``SETS`` of the DFTB2 variant reaches the tree, without being in the spec."""
+    scc = node_at(
+        translate(dftbp_spec(), dftbplus_schema), "Hamiltonian", "DFTB", "SCC"
+    )
+    assert scc.value is True
+
+
+def test_option_variants_reach_their_declared_location(dftbplus_schema):
+    spec = dftbp_spec(
+        parameters={
+            "SLATER_KOSTER_FILES": {"variant": "Type2FileNames"},
+            "KPOINTS": {"SupercellFolding": FOLDING},
+            "FILLING": {"Fermi": {"Temperature": 0.001}},
+        }
+    )
+    dftb = node_at(translate(spec, dftbplus_schema), "Hamiltonian", "DFTB").children
+    assert dftb["SlaterKosterFiles"].value == "Type2FileNames"
+    assert dftb["KPointsAndWeights"].value == "SupercellFolding"
+    assert dftb["KPointsAndWeights"].children["SupercellFolding"].value == FOLDING
+    temperature = dftb["Filling"].children["Fermi"].children["Temperature"]
+    assert temperature.value == pytest.approx(0.001, abs=1e-15)

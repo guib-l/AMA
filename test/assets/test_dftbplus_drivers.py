@@ -5,13 +5,16 @@ No DFTB+ installation is involved: both libraries are created by the tests, as
 """
 
 import importlib
+import json
+import os
 import sys
 
 import pytest
 from ase.build import molecule
 
-from amac.assets.dftbplus.drivers import LIBRARY_ENV, DftbPlusApiDriver, HsdDriver
 from amac.assets.dftbplus.dftbplus import DftbPlus
+from amac.assets.dftbplus.drivers import LIBRARY_ENV, DftbPlusApiDriver, HsdDriver
+from amac.config import clear_config_cache, set_config
 from amac.engine.context import OUTPUT_KEY, RunContext
 from amac.parameter.composer import inject_resources, translate
 from amac.parameter.parameters import CalculationSpec, ExecutionSpec
@@ -37,12 +40,16 @@ def dump_string(data, indent=0):
 DFTBPLUS = '''\
 """Fake DFTB+ Python API: writes the files the real program would write."""
 
+import os
 from pathlib import Path
 
 
 class DftbPlus:
     def __init__(self, libpath, hsdpath, logfile):
         self.libpath = libpath
+        # The real library reads its environment when it starts, as here.
+        self.threads = os.environ.get("OMP_NUM_THREADS")
+        self.prefix = os.environ.get("DFTB_PREFIX")
         self.directory = Path(hsdpath).parent
         Path(logfile).write_text("fake dftb+ log\\n", encoding="utf-8")
         self.geometry = None
@@ -72,9 +79,7 @@ def make_spec() -> CalculationSpec:
     return CalculationSpec.from_kwargs(
         method="TIGHT_BINDING",
         method_args={"variant": "DFTB2", "MaxAngularMomentum": {"O": "p", "H": "s"}},
-        parameters={
-            "SLATER_KOSTER_FILES": {"variant": "Type2FileNames", "Prefix": "mio"}
-        },
+        parameters={"SLATER_KOSTER_FILES": {"variant": "Type2FileNames"}},
     )
 
 
@@ -89,10 +94,26 @@ def make_ctx(directory, exec_spec=None) -> RunContext:
     return ctx
 
 
+def write_config(tmp_path, env):
+    """Write the configuration file of DFTB+ and give it to AMAC."""
+    path = tmp_path / "config-amac.json"
+    path.write_text(json.dumps({"software": {"DFTB+": {"env": env}}}), encoding="utf-8")
+    clear_config_cache()
+    set_config(path)
+    return path
+
+
 @pytest.fixture(autouse=True)
-def clean_modules(monkeypatch):
+def slako(tmp_path):
+    """Give DFTB+ the directory of its Slater-Koster files in the configuration."""
+    directory = str(tmp_path / "mio-1-1")
+    write_config(tmp_path, {"BASIS": directory})
+    return directory
+
+
+@pytest.fixture(autouse=True)
+def clean_modules():
     """Remove the fake libraries after each test."""
-    monkeypatch.delenv(LIBRARY_ENV, raising=False)
     yield
     for name in ("hsd", "dftbplus"):
         sys.modules.pop(name, None)
@@ -137,6 +158,16 @@ def test_hsd_driver_writes_the_geometry_and_the_tree(tmp_path, fake_hsd):
     assert "SCC = True" in text  # The fake library does not render booleans.
     # WriteResultsTag is written by the driver too, through complete_tree.
     assert "WriteResultsTag = True" in text
+
+
+def test_hsd_driver_writes_the_prefix_from_basis(tmp_path, fake_hsd, slako):
+    directory = tmp_path / "prefix"
+    directory.mkdir()
+    ctx = make_ctx(directory)
+    HsdDriver().prepare(DftbPlus(), ctx)
+
+    text = ctx.input_files["dftb_in.hsd"].read_text(encoding="utf-8")
+    assert f"Prefix = {slako}/" in text
 
 
 def test_hsd_driver_applies_raw(tmp_path, fake_hsd):
@@ -185,11 +216,11 @@ def test_api_driver_refuses_an_unset_library():
     assert reason is not None and LIBRARY_ENV in reason
 
 
-def test_api_driver_accepts_the_library_of_the_environment(monkeypatch):
-    monkeypatch.setenv(LIBRARY_ENV, "/opt/dftbplus/lib/libdftbplus.so")
+def test_api_driver_accepts_the_library_of_the_configuration(tmp_path, slako):
+    write_config(tmp_path, {"BASIS": slako, LIBRARY_ENV: "/opt/dftb/libdftbplus.so"})
     driver = DftbPlusApiDriver()
     assert driver.check_environment(DftbPlus()) is None
-    assert driver.library_path(DftbPlus()) == "/opt/dftbplus/lib/libdftbplus.so"
+    assert driver.library_path(DftbPlus()) == "/opt/dftb/libdftbplus.so"
 
 
 def test_api_driver_runs_and_collects(tmp_path, fake_api, monkeypatch):
@@ -211,3 +242,24 @@ def test_api_driver_runs_and_collects(tmp_path, fake_api, monkeypatch):
     driver.collect(software, ctx)
     assert {"results.tag", "detailed.out", "dftb.out"} <= set(ctx.files)
     assert ctx.objects[OUTPUT_KEY].energy == pytest.approx(-2.5)
+
+
+def test_api_driver_leaves_the_environment_untouched(tmp_path, fake_api, monkeypatch):
+    """The run happens in this process: it must not outlive its environment."""
+    monkeypatch.setenv("OMP_NUM_THREADS", "1")
+    monkeypatch.delenv("DFTB_PREFIX", raising=False)
+    directory = tmp_path / "run"
+    directory.mkdir()
+    exec_spec = ExecutionSpec(
+        cpu=4,
+        env={LIBRARY_ENV: str(tmp_path / "libdftbplus.so"), "DFTB_PREFIX": "/slako"},
+    )
+    ctx = make_ctx(directory, exec_spec)
+
+    DftbPlusApiDriver().run(DftbPlus(), ctx)
+
+    # cpu=4 and the env of the run applied during the run, not after it.
+    assert ctx.objects["dftbplus"].threads == "4"
+    assert ctx.objects["dftbplus"].prefix == "/slako"
+    assert os.environ["OMP_NUM_THREADS"] == "1"
+    assert "DFTB_PREFIX" not in os.environ

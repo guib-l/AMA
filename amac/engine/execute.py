@@ -7,8 +7,8 @@ import shutil
 import signal
 import subprocess
 import time
-from collections.abc import Mapping
-from contextlib import ExitStack, suppress
+from collections.abc import Iterator, Mapping
+from contextlib import ExitStack, contextmanager, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -41,13 +41,13 @@ class ExecResult:
     stdout_file: Path | None = None
 
 
-def build_environment(
-    cpu: int, env: Mapping[str, str] | None = None
-) -> dict[str, str]:
-    """Return the environment of a run.
+def run_overrides(cpu: int, env: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Return the variables a run adds to the environment it inherits.
 
-    The current environment is completed by ``OMP_NUM_THREADS`` set to ``cpu``, then
-    updated with ``env``, which may therefore override both.
+    ``OMP_NUM_THREADS`` is set to ``cpu``, then ``env`` is applied and may
+    override it. This is the single place where that order is decided: both
+    :func:`build_environment`, for a subprocess, and :func:`applied_environment`,
+    for an in-process run, use it.
 
     Args:
         cpu: Number of cores.
@@ -56,7 +56,58 @@ def build_environment(
     Returns:
         A new dict.
     """
-    return {**os.environ, "OMP_NUM_THREADS": str(cpu), **(env or {})}
+    return {"OMP_NUM_THREADS": str(cpu), **(env or {})}
+
+
+def build_environment(
+    cpu: int, env: Mapping[str, str] | None = None
+) -> dict[str, str]:
+    """Return the environment of a run.
+
+    The current environment is completed by :func:`run_overrides`.
+
+    Args:
+        cpu: Number of cores.
+        env: Additional variables, e.g. ``ExecutionSpec.env``.
+
+    Returns:
+        A new dict.
+    """
+    return {**os.environ, **run_overrides(cpu, env)}
+
+
+@contextmanager
+def applied_environment(
+    cpu: int, env: Mapping[str, str] | None = None
+) -> Iterator[dict[str, str]]:
+    """Apply the environment of a run to this process, then restore it.
+
+    An in-process software or driver cannot be handed an environment the way a
+    subprocess is: the variables must be in ``os.environ`` before the library
+    starts. They are restored when the block ends, whatever happens inside, so
+    that one calculation never changes the environment of the next one, nor that
+    of the caller. Variables absent before are removed again.
+
+    This is not thread-safe: ``os.environ`` is global to the process.
+
+    Args:
+        cpu: Number of cores.
+        env: Additional variables, e.g. ``ExecutionSpec.env``.
+
+    Yields:
+        The variables applied, as :func:`run_overrides` builds them.
+    """
+    overrides = run_overrides(cpu, env)
+    previous = {name: os.environ.get(name) for name in overrides}
+    os.environ.update(overrides)
+    try:
+        yield overrides
+    finally:
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
 
 
 class LocalExecutor:

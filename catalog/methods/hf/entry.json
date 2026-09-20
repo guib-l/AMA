@@ -5,8 +5,6 @@
         "HARTREE_FOCK"
     ],
     "ACCEPTS": [
-        "REFERENCE",
-        "INTEGRAL_APPROXIMATION",
         "DISPERSION"
     ],
     "DESCRIPTION": "Hartree-Fock. Le caractère restreint ou non est l'axe REFERENCE, pas une méthode."

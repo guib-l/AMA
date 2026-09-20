@@ -15,7 +15,7 @@ from amac.parameter.catalog import (
     links,
     load_catalog,
 )
-from amac.parameter.schema import REQUIRED_KEYS, load
+from amac.parameter.schema import REQUIRED_KEYS, load, resolve_name
 
 
 @pytest.fixture
@@ -70,7 +70,6 @@ def test_catalog_is_cached_and_read_only(catalog):
         ("SCC-DFTB", "METHOD", "DFTB2"),
         ("d3bj", "OPTION", "D3(BJ)"),
         ("freq", "MODULE", "FREQUENCIES"),
-        ("uks", None, "UNRESTRICTED"),
     ],
 )
 def test_resolve(catalog, name, kind, expected):
@@ -233,6 +232,50 @@ def test_dftbplus_links(tmp_path):
 def test_every_documented_software_links_resolve():
     for schema in documented_software().values():
         assert links(schema)
+
+
+# A canonical name realised by two different nodes of the same software: no alias
+# can tell them apart, so the user names the node of the software instead.
+AMBIGUOUS_LINKS = {("DFTBP", "D3(BJ)")}
+
+
+def _container(schema, location: tuple[str, ...]) -> Any:
+    """Return the mapping the node of ``location`` is a key of."""
+    node = schema.data
+    for part in location[:-1]:
+        node = node[part]
+    return node
+
+
+def test_canonical_names_are_accepted_by_their_software():
+    """A catalog name must be usable in a spec, where the node it names lives.
+
+    The catalog is not read when a spec is resolved: a ``doc.json`` accepts a
+    canonical name only because its node carries it as a key or an alias. This
+    test is what keeps the two in step, and fails when a ``CANONICAL`` is added
+    without the matching alias.
+    """
+    unreachable = []
+    for name, schema in documented_software().items():
+        for link in links(schema):
+            if (name, link.canonical) in AMBIGUOUS_LINKS:
+                continue
+            try:
+                resolve_name(_container(schema, link.location), link.canonical)
+            except ValidationError:
+                unreachable.append(
+                    f"{name}: '{link.canonical}' names {'/'.join(link.location)}, "
+                    f"which answers to '{link.location[-1]}' only"
+                )
+    assert not unreachable, "\n".join(unreachable)
+
+
+@pytest.mark.parametrize(("software", "canonical"), sorted(AMBIGUOUS_LINKS))
+def test_ambiguous_canonical_names_stay_ambiguous(software, canonical):
+    """The known exceptions are real: several nodes realise the same name."""
+    schema = documented_software()[software]
+    realising = [link for link in links(schema) if link.canonical == canonical]
+    assert len(realising) > 1
 
 
 def test_nested_link(tmp_path):

@@ -5,7 +5,9 @@ the tests, as ``amac_dummy_lib`` is for the dummy software.
 """
 
 import importlib
+import json
 import sys
+import warnings
 
 import pytest
 from ase.build import molecule
@@ -21,6 +23,7 @@ from amac.assets.demonnano.demonnano import (
     PARAMETERS,
     DeMonNano,
 )
+from amac.config import clear_config_cache, set_config
 from amac.engine.context import OUTPUT_KEY, RunContext
 from amac.exceptions import (
     ConfigurationError,
@@ -29,6 +32,7 @@ from amac.exceptions import (
 )
 from amac.parameter.composer import translate
 from amac.parameter.parameters import CalculationSpec, ExecutionSpec
+from amac.parameter.validator import validate
 
 ENERGY = -4.0710651894
 
@@ -98,14 +102,30 @@ class Module_DeMonNano(deMonNano):
 SPEC = {
     "method": "DFTB",
     "method_args": {"variant": "DFTB2"},
-    "parameters": {"SLATER_KOSTER_FILES": {"SKFILE": "sk-files"}},
+    "parameters": {"SLATER_KOSTER_FILES": {"PTYPE": "BIO"}},
 }
 
 
+def write_config(tmp_path, env):
+    """Write the configuration file of deMonNano and give it to AMAC."""
+    path = tmp_path / "config-amac.json"
+    path.write_text(json.dumps({"software": {"DEMON": {"env": env}}}), "utf-8")
+    clear_config_cache()
+    set_config(path)
+    return path
+
+
 @pytest.fixture(autouse=True)
-def clean_modules(monkeypatch):
-    """Hide any real library and remove the fake one after each test."""
-    monkeypatch.delenv("DEMON_EXECUTABLE", raising=False)
+def basis_directory(tmp_path):
+    """Give deMonNano the directory of its Slater-Koster files in the config."""
+    directory = str(tmp_path / "basis")
+    write_config(tmp_path, {"BASIS": directory})
+    return directory
+
+
+@pytest.fixture(autouse=True)
+def clean_modules():
+    """Remove the fake library after each test."""
     yield
     for name in [n for n in sys.modules if n == "deMonPy" or n.startswith("deMonPy.")]:
         sys.modules.pop(name, None)
@@ -166,7 +186,6 @@ def test_class_attributes():
     assert DeMonNano.EXECUTION == "INPROCESS"
     # The library starts deMon.x: a run still needs an explicit executable.
     assert DeMonNano.REQUIRES_EXECUTABLE is True
-    assert DeMonNano.EXECUTABLE_ENV == "DEMON_EXECUTABLE"
 
 
 def test_check_environment_without_the_library(monkeypatch):
@@ -179,14 +198,17 @@ def test_check_environment_with_the_library(fake_library):
     assert DeMonNano().check_environment() is None
 
 
-def test_build_gives_the_library_its_arguments(tmp_path, executable, fake_library):
+def test_build_gives_the_library_its_arguments(
+    tmp_path, executable, fake_library, basis_directory
+):
     ctx = make_ctx(tmp_path, executable)
     ctx.software.build(ctx)
     calculator = ctx.objects[CALCULATOR_KEY]
     assert calculator.execut == str(executable)
     assert calculator.workdir == ctx.directory
     assert calculator.omp_threads == 4
-    assert calculator.parameters[BASIS] == {"SKFILE": "sk-files"}
+    # SKFILE comes from BASIS of the configuration file, PTYPE from the spec.
+    assert calculator.parameters[BASIS] == {"PTYPE": "BIO", "SKFILE": basis_directory}
     assert calculator.parameters[PARAMETERS][ACTIVE]["DFTB"] == {"SCC": True}
     assert MODULES not in calculator.parameters
 
@@ -233,6 +255,44 @@ def test_build_writes_only_the_chosen_optimiser(tmp_path, executable, fake_libra
     ctx.software.build(ctx)
     block = ctx.objects[CALCULATOR_KEY].parameters[MODULES][ACTIVE]["OPT"]
     assert block == {"MAX": 50, "SDC": True}
+
+
+@pytest.mark.parametrize("env", [{}, {"BASIS": ""}], ids=["missing", "empty"])
+def test_build_without_basis(tmp_path, executable, fake_library, env):
+    path = write_config(tmp_path, env)
+    ctx = make_ctx(tmp_path, executable)
+    with pytest.raises(ConfigurationError, match="BASIS") as info:
+        ctx.software.build(ctx)
+    assert "DEMON" in str(info.value) and str(path) in str(info.value)
+
+
+def test_build_refuses_a_raw_skfile(tmp_path, executable, fake_library):
+    ctx = make_ctx(tmp_path, executable, raw={"BASIS": {"SKFILE": "sk-files"}})
+    with pytest.raises(ValidationError, match="SKFILE"):
+        ctx.software.build(ctx)
+
+
+@pytest.mark.parametrize(
+    ("slater_koster", "path"),
+    [
+        (
+            {"PTYPE": "BIO", "SKFILE": "sk-files"},
+            "parameters.SLATER_KOSTER_FILES.SKFILE",
+        ),
+        ({}, "parameters.SLATER_KOSTER_FILES.PTYPE"),
+    ],
+    ids=["skfile-refused", "ptype-mandatory"],
+)
+def test_validation_of_the_slater_koster_files(slater_koster, path):
+    spec = CalculationSpec.from_kwargs(
+        method="DFTB",
+        method_args={"variant": "DFTB2"},
+        parameters={"SLATER_KOSTER_FILES": slater_koster},
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        issues = validate(spec, DeMonNano().schema(), mode="warn")
+    assert [issue.path for issue in issues] == [path]
 
 
 def test_build_refuses_text_raw(tmp_path, executable, fake_library):
@@ -321,6 +381,28 @@ def test_calculator_runs_and_handlers_convert(tmp_path, executable, fake_library
     assert result.properties["charges"] == pytest.approx([-0.62, 0.31, 0.31])
     assert result.provenance["software"] == "DEMON"
     assert result.provenance["driver"] == "amac"
+
+
+def test_calculator_runs_several_images(tmp_path, executable, fake_library):
+    """An in-process software gets one directory per image, and writes no file."""
+    calc = AMAC(
+        software="deMonNano",
+        workdir=tmp_path / "work",
+        label="images",
+        executable=str(executable),
+        **SPEC,
+    )
+    calc.handler_properties(handlers.energy)
+    results = calc.execute([molecule("H2O"), molecule("H2")])
+
+    assert [result.success for result in results] == [True, True]
+    assert [result.context.directory.name for result in results] == [
+        "image_000",
+        "image_001",
+    ]
+    assert all(result.context.return_code is None for result in results)
+    assert all(result.provenance["software"] == "DEMON" for result in results)
+    assert [result.provenance["image"] for result in results] == [0, 1]
 
 
 def test_reprocess_without_the_library(tmp_path, executable, fake_library):

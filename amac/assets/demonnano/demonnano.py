@@ -20,6 +20,7 @@ from amac.assets.demonnano.parser import (
     from_results,
     parse_directory,
 )
+from amac.config import config_label
 from amac.engine.context import OUTPUT_KEY
 from amac.engine.registry import register_software
 from amac.engine.software import InProcessSoftware
@@ -39,6 +40,8 @@ CALCULATOR_KEY = "demonnano"
 MODULE_KEY = "demonnano.module"
 
 BASIS = "BASIS"
+BASIS_ENV = "BASIS"
+SKFILE = "SKFILE"
 PARAMETERS = "DEMON_PARAMETERS"
 MODULES = "DEMON_MODULE"
 ACTIVE = "ACTIVE"
@@ -117,13 +120,17 @@ class DeMonNano(InProcessSoftware):
         the library reads without a default are completed here, as the DFTB+
         composer completes ``WriteResultsTag``: the ``CI`` block of ``CI-DFTB``,
         the ``MDYNAMICS``, ``TIMESTEP`` and ``MDSTEP`` of a dynamics, and the
-        seven thermostat flags of ``MDBATH``. Nothing else is added: the
-        ``PRINT GRAD`` directive that writes the gradient stays the user's call.
+        seven thermostat flags of ``MDBATH``. ``BASIS.SKFILE`` is the ``BASIS``
+        variable of the ``env`` of the software in the configuration file
+        (decision D5). Nothing else is added: the ``PRINT GRAD`` directive that
+        writes the gradient stays the user's call.
 
         Raises:
             ExecutableNotFoundError: If no explicit source gives ``deMon.x``.
+            ConfigurationError: If ``BASIS`` is not set for deMonNano in the
+                configuration file.
             ValidationError: If ``raw`` is given as text, which has no meaning for
-                a library driven by dictionaries.
+                a library driven by dictionaries, or if ``raw`` gives ``SKFILE``.
         """
         from deMonPy.deMonNano import Module_DeMonNano, deMonNano
 
@@ -197,11 +204,34 @@ class DeMonNano(InProcessSoftware):
                 "takes dictionaries and writes deMon.inp itself"
             )
         arguments = _plain(merged)
+        basis = arguments.setdefault(BASIS, {})
+        if any(key.casefold() == SKFILE.casefold() for key in basis):
+            # The validator refuses it in the spec; raw is never validated.
+            raise ValidationError(
+                f"{self.NAME}: {SKFILE} cannot be given; it is {BASIS_ENV} of the "
+                f"env of [software.{self.NAME}] of {config_label(self.config)}"
+            )
+        basis[SKFILE] = self._slater_koster_directory()
         active = arguments.setdefault(PARAMETERS, {}).setdefault(ACTIVE, {})
         if _variant(ctx.spec, schema) == CI_VARIANT:
             active.setdefault(CI, {})
         _complete_modules(arguments.get(MODULES, {}).get(ACTIVE, {}))
         return arguments
+
+    def _slater_koster_directory(self) -> str:
+        """Return ``BASIS`` of the configured ``env``, the ``SKFILE`` directory.
+
+        Raises:
+            ConfigurationError: If ``BASIS`` is missing or empty.
+        """
+        directory = self.configured_env().get(BASIS_ENV)
+        if not directory:
+            raise ConfigurationError(
+                f"{self.NAME}: {BASIS_ENV} (directory of the Slater-Koster files) is "
+                f"not set in the env of [software.{self.NAME}] of "
+                f"{config_label(self.config)}"
+            )
+        return directory
 
 
 def _variant(spec: Any, schema: Schema) -> str | None:

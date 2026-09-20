@@ -6,7 +6,7 @@ software-independent intermediate tree built from the ``KEYWORD``, ``PATH`` and
 :class:`Composer`; library drivers may read it directly.
 
 Values are placed at the input locations documented in
-``amac/assets/DOC_SCHEMA.md`` and used by the validator, so that condition paths and
+``DOC_SCHEMA.md`` and used by the validator, so that condition paths and
 tree paths designate the same locations. Variants of options, ``SETS``,
 ``COMPANION`` and ``COMMON_ARGUMENTS`` follow the same rules as in the validator.
 """
@@ -16,7 +16,6 @@ from __future__ import annotations
 import copy
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
-from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -226,9 +225,34 @@ class Composer(ABC):
     SYNTAX: ClassVar[str] = ""
 
     def build_tree(
-        self, spec: CalculationSpec, schema: Schema, exec_spec: ExecutionSpec
+        self,
+        spec: CalculationSpec,
+        schema: Schema,
+        exec_spec: ExecutionSpec,
+        tree: InputTree | None = None,
     ) -> InputTree:
-        """Return :func:`translate` completed by :func:`inject_resources`."""
+        """Return the tree to render, built once per image.
+
+        ``AMAC`` translates the spec before the phases start and puts the tree in
+        ``ctx.metadata["input_tree"]``; ``FileIOSoftware.prepare`` passes it here,
+        so that it is not translated a second time. The composer then works on
+        that very tree: what a composer writes into it, such as the options a
+        software needs to be read back, ends up in the provenance, as it already
+        does for a driver that prepares the input.
+
+        Args:
+            spec: Calculation to write.
+            schema: Schema of the software.
+            exec_spec: Execution specification, for ``INPUT.RESOURCES``.
+            tree: Tree already built for this image; ``None`` builds it here, for
+                a composer called outside a run.
+
+        Returns:
+            The tree given, or :func:`translate` completed by
+            :func:`inject_resources`.
+        """
+        if tree is not None:
+            return tree
         tree = translate(spec, schema)
         inject_resources(tree, schema, exec_spec)
         return tree
@@ -240,8 +264,13 @@ class Composer(ABC):
         schema: Schema,
         atoms: Any,
         exec_spec: ExecutionSpec,
+        tree: InputTree | None = None,
     ) -> dict[str, str]:
-        """Return the input files, file name mapped to content."""
+        """Return the input files, file name mapped to content.
+
+        ``tree`` is the tree of the image, to pass on to :meth:`build_tree`; it is
+        modified in place by the composers that complete it.
+        """
 
 
 class _PendingComposer(Composer):
@@ -253,6 +282,7 @@ class _PendingComposer(Composer):
         schema: Schema,
         atoms: Any,
         exec_spec: ExecutionSpec,
+        tree: InputTree | None = None,
     ) -> dict[str, str]:
         """Raise, the concrete composers are outside the core.
 
@@ -271,13 +301,14 @@ class _TextComposer(Composer):
         schema: Schema,
         atoms: Any,
         exec_spec: ExecutionSpec,
+        tree: InputTree | None = None,
     ) -> dict[str, str]:
         """Return ``{INPUT.FILENAME: text}``, the text given by :meth:`render`.
 
         ``atoms`` is not used: software subclasses add the geometry by overriding
         this method or :meth:`render`.
         """
-        tree = self.build_tree(spec, schema, exec_spec)
+        tree = self.build_tree(spec, schema, exec_spec, tree)
         return {schema.input["FILENAME"]: self.render(tree)}
 
     @abstractmethod
@@ -286,11 +317,14 @@ class _TextComposer(Composer):
 
 
 class KeywordBlockComposer(_TextComposer):
-    """Keyword line and blocks (ORCA, Gaussian).
+    """Keyword line and blocks.
+
+    No registered software uses this syntax today; it stays available for the
+    programs whose input is a keyword line followed by blocks.
 
     Attributes:
         KEYWORD_PREFIX: Start of the keyword line, set by software subclasses, e.g.
-            ``"!"`` for ORCA or ``"#p"`` for Gaussian.
+            ``"!"`` or ``"#p"``.
     """
 
     SYNTAX = "KEYWORD_BLOCK"

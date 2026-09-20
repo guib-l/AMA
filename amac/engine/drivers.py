@@ -1,7 +1,7 @@
 """Optional drivers running some phases of a calculation with a dedicated library.
 
 A software may declare :class:`Driver` subclasses in ``Software.DRIVERS``. A driver
-uses a Python library of the program (e.g. OPI for ORCA) for some of the
+uses a Python library of the program (e.g. the DFTB+ API) for some of the
 ``prepare``, ``run`` and ``collect`` phases; the other phases follow the AMAC path
 of the ``Software``. Libraries are never required: :meth:`Driver.is_available`
 looks for them without importing them, and a driver imports its library inside its
@@ -142,6 +142,11 @@ class Driver(ABC):
         self, software: Software, exec_spec: ExecutionSpec
     ) -> dict[str, Any]:
         """Return the settings to give to the library.
+
+        A driver running the program in this process, rather than as a
+        subprocess, applies ``cpu`` and ``env`` with
+        ``amac.engine.execute.applied_environment``, which restores them
+        afterwards: variables left in ``os.environ`` would change the next run.
 
         Returns:
             ``cpu``, ``ram``, ``timeout``, ``env`` and ``executable``. ``env`` is

@@ -6,15 +6,9 @@
     ],
     "VARIANT_REQUIRED": true,
     "ACCEPTS": [
-        "REFERENCE",
-        "INTEGRAL_APPROXIMATION",
         "DISPERSION",
-        "SOLVATION",
-        "EXCITED_STATES",
         "SMEARING",
-        "KPOINTS",
-        "HUBBARD_U",
-        "SPIN_ORBIT_COUPLING"
+        "KPOINTS"
     ],
     "DESCRIPTION": "Théorie de la fonctionnelle de la densité ; la fonctionnelle est la variante.",
     "VARIANTS": {

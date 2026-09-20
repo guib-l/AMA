@@ -1,9 +1,16 @@
-"""Tests of amac.engine.registry."""
+"""Tests of amac.engine.registry.
+
+The registered software are the real ones (``DFTBP``, ``DEMON``); the registration
+rules themselves are checked on throw-away classes declared here, registered in a
+copy of the global registry.
+"""
+
+import importlib
 
 import pytest
 
-from amac.assets._dummy.dummy import DummySoftware
-from amac.assets._dummy.inprocess import DummyInProcess
+from amac.assets.demonnano.demonnano import DeMonNano
+from amac.assets.dftbplus.dftbplus import DftbPlus
 from amac.engine import registry
 from amac.engine.registry import available_software, get_software, register_software
 from amac.engine.software import FileIOSoftware, Software
@@ -19,11 +26,13 @@ def isolated_registry(monkeypatch):
 @pytest.mark.parametrize(
     ("name", "expected"),
     [
-        ("DUMMY", DummySoftware),
-        ("dummy", DummySoftware),
-        ("DuMmY", DummySoftware),
-        ("DUMMY_INPROCESS", DummyInProcess),
-        ("Dummy-InProcess", DummyInProcess),
+        ("DFTBP", DftbPlus),
+        ("dftbp", DftbPlus),
+        ("DfTbP", DftbPlus),
+        ("DFTB+", DftbPlus),
+        ("dftb+", DftbPlus),
+        ("DEMON", DeMonNano),
+        ("deMonNano", DeMonNano),
     ],
 )
 def test_get_software(name, expected):
@@ -31,7 +40,7 @@ def test_get_software(name, expected):
 
 
 def test_unknown_software():
-    with pytest.raises(SoftwareNotFoundError, match="Unknown software 'NOPE'.*DUMMY"):
+    with pytest.raises(SoftwareNotFoundError, match="Unknown software 'NOPE'.*DFTBP"):
         get_software("NOPE")
 
 
@@ -43,9 +52,8 @@ def test_software_name_must_be_str():
 def test_available_software_lists_canonical_names():
     names = available_software()
     assert names == sorted(names)
-    known = {"DUMMY", "DUMMY_INPROCESS", "ORCA", "GAUSSIAN", "DFTBP", "DEMON"}
-    assert known <= set(names)
-    assert "DUMMY-INPROCESS" not in names
+    assert {"DFTBP", "DEMON"} <= set(names)
+    assert "DFTB+" not in names  # Aliases are not canonical names.
 
 
 def test_register_with_aliases():
@@ -64,7 +72,7 @@ def test_register_with_aliases():
 
 @pytest.mark.parametrize(
     ("name", "aliases"),
-    [("dummy", ()), ("CLASH_TEST", ("DUMMY-INPROCESS",))],
+    [("dftbp", ()), ("CLASH_TEST", ("DFTB+",))],
     ids=["name", "alias"],
 )
 def test_duplicate_names_are_refused(name, aliases):
@@ -75,7 +83,7 @@ def test_duplicate_names_are_refused(name, aliases):
         def command(self, ctx):
             return []
 
-    with pytest.raises(ValueError, match="already registered by Dummy"):
+    with pytest.raises(ValueError, match="already registered by DftbPlus"):
         register_software(ClashSoftware)
 
 
@@ -102,4 +110,12 @@ def test_incomplete_software_cannot_be_instantiated():
 
     with pytest.raises(TypeError, match="abstract"):
         IncompleteSoftware()
-    assert DummySoftware().name == "DUMMY"
+    assert DftbPlus().name == "DFTBP"
+
+
+def test_software_packages_are_lowercase():
+    """Each software lives in a package named after it, in lowercase."""
+    for name in ("dftbplus", "demonnano"):
+        package = importlib.import_module(f"amac.assets.{name}")
+        assert f"from amac.assets import {name}" in package.__doc__
+    assert get_software("DFTB+").DOC.parent.name == "dftbplus"

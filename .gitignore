@@ -1,10 +1,13 @@
 .env/
 data/
 archive/
+
+# AI
+audit*.md
+do-not-read.md
 TODO*.md
 .claude/
-requirements*.txt
-DOC_SCHEMA.md
+CLAUDE.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -213,3 +216,4 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+config-amac.json

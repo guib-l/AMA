@@ -1,112 +1,67 @@
-"""Tests of the normalized output pattern with the dummy software and a fake library."""
+"""Tests of the normalized output pattern, on the DFTB+ asset driven by the stub.
 
-import importlib
-import sys
+The pattern is generic: a software (or a collecting driver) leaves its normalized
+output in ``ctx.objects[OUTPUT_KEY]``, and the handlers read it through
+``cached_output`` so that the files are parsed once per run.
+"""
 
+import numpy as np
 import pytest
-from ase import Atoms
+from ase.units import Hartree
+from conftest import STUB_ENERGY, stub_charges
 
 import amac
-from amac import AMAC
-from amac.assets import _dummy
-from amac.assets._dummy.dummy import OUTPUT_FILE, DummyOutput, parse_directory
+from amac.assets import dftbplus
+from amac.assets.dftbplus import handlers as dftbplus_handlers
+from amac.assets.dftbplus.parser import DETAILED_OUT, DftbPlusOutput
 from amac.engine.context import OUTPUT_KEY, RunContext, cached_output
 from amac.exceptions import HandlerError
 
-PARAMETERS = {
-    "method": "DFT",
-    "method_args": {"variant": "PBE"},
-    "parameters": {"BASIS": "sto-3g"},
-}
 
-LIBRARY = '''\
-"""Fake dedicated library of the dummy software, created by the tests."""
-
-import json
-from pathlib import Path
-from types import SimpleNamespace
-
-
-def write_input(spec, directory):
-    path = Path(directory) / "input.json"
-    path.write_text(json.dumps(spec), encoding="utf-8")
-    return path
-
-
-def compute(directory, cpu=1):
-    directory = Path(directory)
-    spec = json.loads((directory / "input.json").read_text(encoding="utf-8"))
-    result = {"energy": -2.0, "forces": [], "method": spec["method"]}
-    (directory / "output.json").write_text(json.dumps(result), encoding="utf-8")
-
-
-def read_output(directory):
-    path = Path(directory) / "output.json"
-    return SimpleNamespace(**json.loads(path.read_text(encoding="utf-8")))
-'''
-
-
-def water() -> Atoms:
-    positions = [[0.0, 0.0, 0.0], [0.76, 0.59, 0.0], [-0.76, 0.59, 0.0]]
-    return Atoms("OH2", positions=positions)
-
-
-def make_calc(tmp_path, **kwargs) -> AMAC:
-    arguments = {"software": "dummy", "workdir": tmp_path / "work", "validate": "off"}
-    return AMAC(**arguments | PARAMETERS | kwargs)
-
-
-@pytest.fixture(autouse=True)
-def clean_environment(monkeypatch):
-    """No executable variable during the test, no fake library left after it."""
-    monkeypatch.delenv("DUMMY_EXECUTABLE", raising=False)
-    yield
-    sys.modules.pop("amac_dummy_lib", None)
-    importlib.invalidate_caches()
-
-
-@pytest.fixture
-def dummy_lib(tmp_path, monkeypatch):
-    """Make amac_dummy_lib importable from a temporary sys.path entry."""
-    package = tmp_path / "site" / "amac_dummy_lib"
-    package.mkdir(parents=True)
-    (package / "__init__.py").write_text(LIBRARY, encoding="utf-8")
-    monkeypatch.syspath_prepend(str(package.parent))
-
-
-def test_cached_output_parses_once(tmp_path):
-    calc = make_calc(tmp_path)
-    ctx = RunContext(water(), calc.spec, calc.exec_spec, tmp_path)
+def test_cached_output_parses_once(tmp_path, stub_calc, water):
+    calc = stub_calc()
+    ctx = RunContext(water, calc.spec, calc.exec_spec, tmp_path)
     calls = []
 
     def parse(directory):
         calls.append(directory)
-        return DummyOutput(-3.0, [], "DFT")
+        return DftbPlusOutput(energy=-3.0)
 
     first = cached_output(ctx, parse)
-    assert first == DummyOutput(-3.0, [], "DFT")
+    assert first == DftbPlusOutput(energy=-3.0)
     assert ctx.objects[OUTPUT_KEY] is first
     assert cached_output(ctx, parse) is first
     assert calls == [tmp_path]
 
 
-def test_collecting_driver_fills_files_and_output(tmp_path, dummy_lib):
-    calc = make_calc(tmp_path, driver="dummy-lib")
-    calc.handler_properties(_dummy.energy, _dummy.forces)
-    result = calc.execute(water())
+def test_the_handlers_of_a_run_share_one_parsing(stub_calc, water, monkeypatch):
+    """Two handlers, one reading of the output files."""
+    calls = []
+    original = dftbplus_handlers.parse_directory
 
-    ctx = result.context
-    assert set(ctx.files) == {OUTPUT_FILE}
-    assert ctx.objects[OUTPUT_KEY] == DummyOutput(-2.0, [], "DFT")
-    assert result.properties["energy"] == pytest.approx(-2.0, abs=1e-12)
-    assert result.properties["forces"] == []
+    def counted(directory):
+        calls.append(directory)
+        return original(directory)
+
+    monkeypatch.setattr(dftbplus_handlers, "parse_directory", counted)
+    calc = stub_calc()
+    calc.handler_properties(dftbplus.energy, dftbplus.charges)
+    result = calc.execute(water)
+
+    assert calls == [result.context.directory]
+    output = result.context.objects[OUTPUT_KEY]
+    assert isinstance(output, DftbPlusOutput)
+    assert output.energy == pytest.approx(STUB_ENERGY)
+    assert result.properties["energy"] == pytest.approx(STUB_ENERGY * Hartree)
+    assert result.properties["charges"] == pytest.approx(stub_charges(len(water)))
 
 
-def test_requires_files_applies_to_the_output(tmp_path, dummy_lib):
-    calc = make_calc(tmp_path, driver="dummy-lib")
-    calc.handler_properties(_dummy.energy)
-    directory = calc.execute(water()).context.directory
-    (directory / OUTPUT_FILE).unlink()
+def test_requires_files_applies_to_the_output(stub_calc, water):
+    """A handler whose files are gone is skipped, and nothing is parsed."""
+    calc = stub_calc()
+    calc.handler_properties(dftbplus.energy)
+    directory = calc.execute(water).context.directory
+    (directory / DETAILED_OUT).unlink()
 
     again = calc.reprocess(directory)
     assert again.success
@@ -114,42 +69,29 @@ def test_requires_files_applies_to_the_output(tmp_path, dummy_lib):
     assert OUTPUT_KEY not in again.context.objects
     [error] = again.errors
     assert isinstance(error, HandlerError)
-    assert "missing files: output.json" in str(error)
+    assert f"missing files: {DETAILED_OUT}" in str(error)
 
 
-def test_reprocess_through_the_driver(tmp_path, dummy_lib):
-    calc = make_calc(tmp_path, driver="dummy-lib")
-    calc.handler_properties(_dummy.energy)
-    result = calc.execute(water())
+def test_reprocess_rebuilds_the_output_from_the_files(stub_calc, water):
+    """A calculator that never ran can read the directory of another one."""
+    written = stub_calc(label="written")
+    written.handler_properties(dftbplus.energy)
+    directory = written.execute(water).context.directory
 
-    for again in (
-        calc.reprocess(result.context.directory),
-        amac.reprocess(result, [_dummy.energy]),
-    ):
-        assert again.context.driver == "dummy-lib"
-        assert again.context.objects[OUTPUT_KEY] == DummyOutput(-2.0, [], "DFT")
-        assert again.properties["energy"] == pytest.approx(-2.0, abs=1e-12)
-
-
-def test_reprocess_rebuilds_the_output_from_the_files(tmp_path, dummy_lib):
-    written = make_calc(tmp_path, driver="dummy-lib", label="lib")
-    written.handler_properties(_dummy.native_energy)
-    directory = written.execute(water()).context.directory
-    calc = make_calc(tmp_path)
-
-    again = calc.reprocess(directory, handlers=[_dummy.energy, _dummy.forces])
-    assert again.context.objects == {OUTPUT_KEY: DummyOutput(-2.0, [], "DFT")}
-    assert again.properties["energy"] == pytest.approx(-2.0, abs=1e-12)
-    assert again.properties["forces"] == []
-    assert parse_directory(directory) == DummyOutput(-2.0, [], "DFT")
+    calc = stub_calc(label="other")
+    again = calc.reprocess(directory, handlers=[dftbplus.energy, dftbplus.forces])
+    assert again.properties["energy"] == pytest.approx(STUB_ENERGY * Hartree)
+    assert np.asarray(again.properties["forces"]).shape == (len(water), 3)
+    assert again.context.objects[OUTPUT_KEY].energy == pytest.approx(STUB_ENERGY)
+    assert again.provenance["reprocessed"]
 
 
-def test_module_reprocess_rebuilds_the_output_from_the_files(tmp_path):
-    calc = make_calc(tmp_path)
-    calc.handler_properties(_dummy.forces)
-    result = calc.execute(water())
-    assert result.context.objects[OUTPUT_KEY] == DummyOutput(-1.0, [], "DFT")
+def test_module_reprocess_rebuilds_the_output_from_the_files(stub_calc, water):
+    calc = stub_calc()
+    calc.handler_properties(dftbplus.forces)
+    result = calc.execute(water)
+    assert result.context.objects[OUTPUT_KEY].energy == pytest.approx(STUB_ENERGY)
 
-    again = amac.reprocess(result, [_dummy.energy])
-    assert again.context.objects == {OUTPUT_KEY: DummyOutput(-1.0, [], "DFT")}
-    assert again.properties["energy"] == pytest.approx(-1.0, abs=1e-12)
+    again = amac.reprocess(result, [dftbplus.energy])
+    assert again.context.objects[OUTPUT_KEY].energy == pytest.approx(STUB_ENERGY)
+    assert again.properties["energy"] == pytest.approx(STUB_ENERGY * Hartree)

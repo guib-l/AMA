@@ -2,23 +2,23 @@
 
 import json
 import socket
-import sys
 from datetime import datetime, timedelta
 
 import numpy as np
 import pytest
 from ase import Atoms
+from ase.units import Hartree
+from conftest import STUB_ENERGY
 
 import amac
-from amac import AMAC
-from amac.assets import _dummy
-from amac.assets._dummy.dummy import DummySoftware
-from amac.engine import registry
+from amac.assets import dftbplus
+from amac.assets.dftbplus.dftbplus import DftbPlus
 from amac.engine.context import Result
 from amac.engine.handlers import handler
 from amac.ios.store import FORMAT, FORMAT_VERSION, load_results, store_results
 
-PYTHON = sys.executable
+# Drivers of DFTB+, tried in this order by driver="auto".
+DFTBP_DRIVERS = ("dftbplus-api", "hsd")
 
 PROVENANCE_KEYS = {
     "amac_version",
@@ -47,25 +47,16 @@ def water() -> Atoms:
     return Atoms("OH2", positions=positions)
 
 
-def make_calc(tmp_path, **kwargs) -> AMAC:
-    arguments = {
-        "software": "dummy",
-        "validate": "off",
-        "method": "DFT",
-        "method_args": {"variant": "PBE"},
-        "parameters": {"BASIS": "sto-3g"},
-        "workdir": tmp_path / "work",
-    }
-    calc = AMAC(**arguments | kwargs)
-    calc.handler_properties(_dummy.energy)
-    return calc
-
-
 @pytest.fixture
-def isolated_registry(monkeypatch):
-    """Let a test register software without leaking it into the global registry."""
-    monkeypatch.setattr(registry, "_REGISTRY", dict(registry._REGISTRY))
-    return registry.register_software
+def calc(stub_calc):
+    """Return a factory of stub calculators already reading the energy."""
+
+    def make(**kwargs):
+        calculator = stub_calc(**kwargs)
+        calculator.handler_properties(dftbplus.energy)
+        return calculator
+
+    return make
 
 
 def test_properties_round_trip(tmp_path):
@@ -105,7 +96,7 @@ def test_properties_round_trip(tmp_path):
     assert (loaded.success, loaded.errors, loaded.context) == (True, [], None)
 
 
-def test_geometry_restored(tmp_path):
+def test_geometry_restored(tmp_path, calc):
     atoms = Atoms(
         "H2",
         positions=[[0.1, 0.2, 0.3], [0.1, 0.2, 1.04]],
@@ -115,9 +106,9 @@ def test_geometry_restored(tmp_path):
     atoms.set_initial_charges([0.5, -0.5])
     atoms.set_initial_magnetic_moments([1.0, 0.0])
     atoms.info["note"] = "not stored"
-    calc = make_calc(tmp_path)
-    calc.execute([atoms, water()])
-    path = calc.store(tmp_path / "geometry")
+    calculator = calc(method_args={"variant": "DFTB2", "MaxAngularMomentum": {"H": "s", "O": "p"}})
+    calculator.execute([atoms, water()])
+    path = calculator.store(tmp_path / "geometry")
 
     charged, neutral = (result.provenance["atoms"] for result in amac.load(path))
     assert charged.get_chemical_symbols() == ["H", "H"]
@@ -137,27 +128,29 @@ def test_geometry_restored(tmp_path):
     }
 
 
-def test_provenance_complete(tmp_path):
+def test_provenance_complete(tmp_path, calc):
     env = {"API_TOKEN": "secret-value", "OMP_NUM_THREADS": "1"}
-    calc = make_calc(tmp_path, driver="auto", env=env, cpu=2)
-    result = calc.execute(water())
-    path = calc.store(tmp_path / "provenance")
+    calculator = calc(driver="auto", env=env, cpu=2)
+    result = calculator.execute(water())
+    path = calculator.store(tmp_path / "provenance")
     assert "secret-value" not in path.read_text(encoding="utf-8")
 
     [loaded] = amac.load(path)
     provenance = loaded.provenance
     assert set(provenance) == PROVENANCE_KEYS
     assert provenance["amac_version"] == amac.__version__
-    assert (provenance["software"], provenance["software_version"]) == ("DUMMY", None)
-    assert (provenance["driver"], provenance["driver_version"]) == ("amac", None)
-    assert provenance["driver_fallback"].startswith("dummy-lib: missing")
+    assert provenance["software"] == "DFTBP"
+    assert provenance["driver"] in ("amac", *DFTBP_DRIVERS)
+    if provenance["driver"] == "amac":
+        # No driver library installed: each one says why it was discarded.
+        assert all(name in provenance["driver_fallback"] for name in DFTBP_DRIVERS)
     assert provenance["image"] is None
-    assert provenance["spec"] == calc.spec.to_dict()
+    assert provenance["spec"] == calculator.spec.to_dict()
     assert provenance["exec_spec"]["cpu"] == 2
     masked = {"API_TOKEN": "***", "OMP_NUM_THREADS": "***"}
     assert provenance["exec_spec"]["env"] == masked
     assert result.provenance["exec_spec"]["env"] == provenance["exec_spec"]["env"]
-    assert calc.exec_spec.env == env
+    assert calculator.exec_spec.env == env
     assert provenance["hostname"] == socket.gethostname()
     start = datetime.fromisoformat(provenance["start"])
     end = datetime.fromisoformat(provenance["end"])
@@ -167,45 +160,42 @@ def test_provenance_complete(tmp_path):
     assert isinstance(provenance["atoms"], Atoms)
 
 
-def test_software_version_failure_gives_none(tmp_path, isolated_registry):
-    class BrokenVersionSoftware(DummySoftware):
-        NAME = "BROKEN_VERSION_TEST"
-        calls = 0
+def test_software_version_failure_gives_none(calc, monkeypatch):
+    """A software whose ``version()`` raises is asked once and reported as ``None``."""
+    calls = []
 
-        def version(self):
-            type(self).calls += 1
-            raise RuntimeError("no version")
+    def broken_version(self):
+        calls.append(self.name)
+        raise RuntimeError("no version")
 
-    isolated_registry(BrokenVersionSoftware)
-    calc = make_calc(tmp_path, software="broken_version_test")
-    results = calc.execute([water(), water()])
+    monkeypatch.setattr(DftbPlus, "version", broken_version)
+    results = calc().execute([water(), water()])
+
     assert [result.success for result in results] == [True, True]
     assert [result.provenance["software_version"] for result in results] == [None, None]
-    assert BrokenVersionSoftware.calls == 1
+    assert calls == ["DFTBP"]
 
 
-def test_errors_restored_as_dicts(tmp_path, isolated_registry):
-    class OneAtomFailure(DummySoftware):
-        NAME = "ONE_ATOM_FAILURE_TEST"
+def test_errors_restored_as_dicts(tmp_path, calc):
+    """One image fails, the other succeeds: both are stored with their errors."""
 
-        def command(self, ctx):
-            if len(ctx.atoms) == 1:
-                return [PYTHON, "-c", "import sys; sys.exit(3)"]
-            return super().command(ctx)
-
-    isolated_registry(OneAtomFailure)
-
-    @handler(software="one_atom_failure_test", requires_files=("missing.dat",))
+    @handler(software="DFTBP", requires_files=("missing.dat",))
     def needs_missing(ctx):
         return None
 
-    calc = make_calc(tmp_path, software="one_atom_failure_test", raise_on_error=False)
-    calc.handler_properties(_dummy.energy, ("broken", lambda ctx: 1 / 0), needs_missing)
-    results = calc.execute([water(), Atoms("H")])
-    first, second = amac.load(calc.store(tmp_path / "errors"))
+    calculator = calc(
+        stub={"fail_atoms": 1},  # exits with 3 on the one-atom image only
+        raise_on_error=False,
+        method_args={"variant": "DFTB2", "MaxAngularMomentum": {"O": "p", "H": "s"}},
+    )
+    calculator.handler_properties(
+        dftbplus.energy, ("broken", lambda ctx: 1 / 0), needs_missing
+    )
+    results = calculator.execute([water(), Atoms("H", positions=[[0.0, 0.0, 0.0]])])
+    first, second = amac.load(calculator.store(tmp_path / "errors"))
 
     assert (first.success, second.success) == (True, False)
-    assert first.properties["energy"] == pytest.approx(-1.0, abs=1e-12)
+    assert first.properties["energy"] == pytest.approx(STUB_ENERGY * Hartree)
     assert first.errors == [
         {
             "type": "HandlerError",
@@ -219,9 +209,7 @@ def test_errors_restored_as_dicts(tmp_path, isolated_registry):
             "missing_files": ["missing.dat"],
         },
     ]
-    assert second.errors == [
-        {"type": "RunError", "message": str(results[1].errors[0])}
-    ]
+    assert second.errors == [{"type": "RunError", "message": str(results[1].errors[0])}]
     assert [first.provenance["image"], second.provenance["image"]] == [0, 1]
     assert [len(first.provenance["atoms"]), len(second.provenance["atoms"])] == [3, 1]
 

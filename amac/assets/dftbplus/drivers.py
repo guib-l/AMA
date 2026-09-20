@@ -2,18 +2,19 @@
 
 Neither library is required: both are imported inside the phases only. The
 DFTB+ Python API is installed with DFTB+ itself, and AMAC never searches for the
-shared library: its path is given explicitly in ``env["DFTBP_LIBRARY"]``.
+shared library: its path is given explicitly as ``DFTBP_LIBRARY`` in the ``env``
+of DFTB+ in the configuration file, or in ``env=`` of the run.
 """
 
 from __future__ import annotations
 
-import os
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from amac.assets.dftbplus.composer import _geometry_given, complete_tree, geometry_block
 from amac.assets.dftbplus.parser import parse_directory
 from amac.engine.context import OUTPUT_KEY
 from amac.engine.drivers import Driver
+from amac.engine.execute import applied_environment
 from amac.parameter.composer import _apply_raw
 
 if TYPE_CHECKING:
@@ -47,6 +48,8 @@ class HsdDriver(Driver):
 
         Raises:
             ValueError: If the software has no ``doc.json``, so no tree.
+            ConfigurationError: If ``BASIS`` is not set for DFTB+ in the
+                configuration file.
         """
         import hsd
 
@@ -54,7 +57,7 @@ class HsdDriver(Driver):
         if tree is None:
             raise ValueError(f"{software.name}: no input tree to write with hsd")
         schema = software.schema()
-        complete_tree(tree, ctx.spec, schema)
+        complete_tree(tree, ctx.spec, schema, software)
         merged, raw_lines = _apply_raw(tree)
         content = hsd.dump_string(_plain(merged))
         geometry = ""
@@ -109,54 +112,58 @@ class DftbPlusApiDriver(Driver):
     ) -> str | None:
         """Return the explicit path of the DFTB+ shared library, ``None`` if unset.
 
-        The value comes from ``env`` of the run, else from the configuration file,
-        else from the process environment. Nothing is searched for: an unset
-        variable means the driver cannot be used.
+        The value comes from ``env`` of the run, else from the ``env`` of the
+        software in the configuration file. Nothing is searched for, and no
+        environment variable is read: an unset value means the driver cannot be
+        used.
 
         Args:
             software: Software of the run, for its configured environment.
             env: Environment of the run, from :meth:`execution_settings`; absent
                 when the driver is being selected, before any ``ExecutionSpec``.
         """
-        sources = {**os.environ, **software.configured_env(), **(env or {})}
+        sources = {**software.configured_env(), **(env or {})}
         return sources.get(self.LIBRARY_ENV) or None
 
     def check_environment(self, software: Software) -> str | None:
         """Return why the driver cannot run, ``None`` when it can.
 
         The shared library of DFTB+ has no default location, and the driver is
-        chosen before the run: the variable must therefore be set in the
-        configuration file or in the process environment, not only in ``env=``.
+        chosen before the run: the value must therefore be in the configuration
+        file, not only in ``env=``.
         """
         if self.library_path(software) is None:
             return (
                 f"the path of the DFTB+ library is missing: set {self.LIBRARY_ENV} "
-                "in the configuration file or in the environment"
+                "in the env of DFTB+ in the configuration file"
             )
         return None
 
     def run(self, software: Software, ctx: RunContext) -> None:
         """Run the calculation of ``ctx.directory`` with the API.
 
-        ``OMP_NUM_THREADS`` is set from ``cpu`` before the library is loaded, the
-        threads being fixed when it starts.
+        ``OMP_NUM_THREADS``, set from ``cpu``, and the ``env`` of the run are
+        applied to the process before the library is loaded, the threads being
+        fixed when it starts. They are restored once the run is over, even if it
+        fails: the calculation runs in this process, so an environment left
+        behind would change the next one.
         """
         from dftbplus import DftbPlus
 
         settings = self.execution_settings(software, ctx.exec_spec)
-        os.environ["OMP_NUM_THREADS"] = str(settings["cpu"])
-        calculator = DftbPlus(
-            libpath=self.library_path(software, settings["env"]),
-            hsdpath=str(ctx.directory / INPUT_FILE),
-            logfile=str(ctx.directory / LOG_FILE),
-        )
-        calculator.set_geometry(
-            ctx.atoms.get_positions(),
-            latvecs=ctx.atoms.get_cell() if ctx.atoms.pbc.any() else None,
-        )
-        ctx.objects["dftbplus"] = calculator
-        ctx.objects["energy"] = calculator.get_energy()
-        calculator.close()
+        with applied_environment(settings["cpu"], settings["env"]):
+            calculator = DftbPlus(
+                libpath=self.library_path(software, settings["env"]),
+                hsdpath=str(ctx.directory / INPUT_FILE),
+                logfile=str(ctx.directory / LOG_FILE),
+            )
+            calculator.set_geometry(
+                ctx.atoms.get_positions(),
+                latvecs=ctx.atoms.get_cell() if ctx.atoms.pbc.any() else None,
+            )
+            ctx.objects["dftbplus"] = calculator
+            ctx.objects["energy"] = calculator.get_energy()
+            calculator.close()
         ctx.return_code = 0
 
     def collect(self, software: Software, ctx: RunContext) -> None:

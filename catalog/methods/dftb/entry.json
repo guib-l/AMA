@@ -5,12 +5,9 @@
     ],
     "VARIANT_REQUIRED": true,
     "ACCEPTS": [
-        "REFERENCE",
         "DISPERSION",
         "SMEARING",
         "KPOINTS",
-        "HUBBARD_U",
-        "SPIN_ORBIT_COUPLING",
         "ELECTRIC_FIELD",
         "POINT_CHARGES"
     ],

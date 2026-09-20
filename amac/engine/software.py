@@ -11,7 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
-from amac.config import config_path, load_config
+from amac.config import config_label, load_config
+from amac.engine.context import INPUT_TREE_KEY
 from amac.engine.execute import LocalExecutor, build_environment
 from amac.exceptions import ExecutableNotFoundError, RunError
 from amac.parameter.composer import get_composer
@@ -33,8 +34,8 @@ class ExecutableLocation:
 
     Attributes:
         path: Executable as given, with ``~`` expanded.
-        source: ``"executable="`` (explicit or ``amac.configure()``),
-            ``"env:<EXECUTABLE_ENV>"`` or ``"file:<configuration file>"``.
+        source: ``"executable="`` (explicit or ``amac.configure()``) or
+            ``"file:<configuration file>"``.
     """
 
     path: str
@@ -58,8 +59,6 @@ class Software(ABC):
             ``driver="auto"``.
         composer_cls: Composer used by ``FileIOSoftware.prepare``; ``None``
             selects the composer of the ``SYNTAX`` of ``DOC``.
-        EXECUTABLE_ENV: Environment variable holding the executable; a class
-            defining its own ``NAME`` without it gets ``"<NAME>_EXECUTABLE"``.
         REQUIRES_EXECUTABLE: Whether runs need an executable from an explicit
             source; ``AMAC.execute`` then checks it before creating any directory.
             ``False`` by default, ``True`` for ``FileIOSoftware``.
@@ -72,14 +71,21 @@ class Software(ABC):
     HANDLERS: ClassVar[dict[str, Callable[[RunContext], Any]]] = {}
     DRIVERS: ClassVar[tuple[type[Driver], ...]] = ()
     composer_cls: ClassVar[type[Composer] | None] = None
-    EXECUTABLE_ENV: ClassVar[str] = ""
     REQUIRES_EXECUTABLE: ClassVar[bool] = False
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         cls.HANDLERS = {}
-        if "NAME" in vars(cls) and "EXECUTABLE_ENV" not in vars(cls):
-            cls.EXECUTABLE_ENV = f"{cls.NAME.upper()}_EXECUTABLE"
+
+    def __init__(self, config: str | Path | None = None) -> None:
+        """Bind the software to a configuration file.
+
+        Args:
+            config: Configuration file read for this software; ``None`` uses the
+                one of ``amac.set_config()``, and no configuration at all without
+                it.
+        """
+        self.config = config
 
     @property
     def name(self) -> str:
@@ -110,9 +116,8 @@ class Software(ABC):
 
         1. ``exec_spec.executable``; the facade has already put the executable of
            ``amac.configure()`` there;
-        2. the non-empty environment variable ``EXECUTABLE_ENV``;
-        3. ``executable`` of ``[software.<NAME>]`` in the configuration file
-           (``amac.config``).
+        2. ``executable`` of ``[software.<NAME>]`` in the configuration file
+           (:attr:`config`, ``amac.config``).
 
         The value is returned as given, with ``~`` expanded; nothing is checked
         here: see :meth:`require_executable`.
@@ -126,9 +131,7 @@ class Software(ABC):
         """
         if exec_spec.executable is not None:
             return _location(exec_spec.executable, EXPLICIT_SOURCE)
-        if self.EXECUTABLE_ENV and (value := os.environ.get(self.EXECUTABLE_ENV)):
-            return _location(value, f"env:{self.EXECUTABLE_ENV}")
-        config = load_config()
+        config = load_config(self.config)
         if (value := config.for_software(self.NAME).executable) is not None:
             return _location(value, f"file:{config.path}")
         return None
@@ -144,10 +147,10 @@ class Software(ABC):
         """
         location = self.locate_executable(exec_spec)
         if location is None:
-            tried = [f"{EXPLICIT_SOURCE}/configure()"]
-            if self.EXECUTABLE_ENV:
-                tried.append(f"${self.EXECUTABLE_ENV}")
-            tried.append(f"{config_path()} [software.{self.NAME}]")
+            tried = [
+                f"{EXPLICIT_SOURCE}/configure()",
+                f"{config_label(self.config)} [software.{self.NAME}]",
+            ]
             raise ExecutableNotFoundError(
                 f"{self.name}: executable not found. Tried: {', '.join(tried)}. Set "
                 "one of them to the absolute path of the executable"
@@ -171,7 +174,7 @@ class Software(ABC):
         Raises:
             ConfigurationError: If the configuration file is invalid.
         """
-        return dict(load_config().for_software(self.NAME).env)
+        return dict(load_config(self.config).for_software(self.NAME).env)
 
     def check_environment(self) -> None:
         """Check that the environment can run the software; does nothing by default.
@@ -197,10 +200,9 @@ class FileIOSoftware(Software):
 
     A subclass sets ``NAME`` and ``DOC``, is registered with
     ``@register_software`` and implements :meth:`command`. It may set
-    ``composer_cls`` and ``EXECUTABLE_ENV``, and override :meth:`stdin` and
+    ``composer_cls``, and override :meth:`stdin` and
     :meth:`stdout_file`. Its runs require an executable (``REQUIRES_EXECUTABLE``).
-    ``amac.assets._dummy.dummy`` is a minimal example without ``doc.json``, which
-    overrides :meth:`prepare` and :meth:`collect`.
+    ``amac.assets.dftbplus.dftbplus`` is a complete example.
     """
 
     EXECUTION = "FILEIO"
@@ -212,13 +214,23 @@ class FileIOSoftware(Software):
         The composer is ``composer_cls`` when set, otherwise the one of the
         ``SYNTAX`` of ``DOC``. Written files are recorded in ``ctx.input_files``.
 
+        The tree ``AMAC`` put in ``ctx.metadata["input_tree"]`` is given to the
+        composer, which works on it rather than translating the spec again: the
+        provenance then holds the tree the input file was written from.
+
         Raises:
             ValueError: If ``DOC`` is not set or no composer handles its ``SYNTAX``.
             FileNotFoundError: If ``ctx.directory`` does not exist.
         """
         schema = self._schema()
         composer_cls = type(self).composer_cls or get_composer(schema.syntax)
-        files = composer_cls().compose(ctx.spec, schema, ctx.atoms, ctx.exec_spec)
+        files = composer_cls().compose(
+            ctx.spec,
+            schema,
+            ctx.atoms,
+            ctx.exec_spec,
+            ctx.metadata.get(INPUT_TREE_KEY),
+        )
         for name, content in files.items():
             path = ctx.directory / name
             with path.open("w", encoding="utf-8") as stream:
@@ -309,7 +321,7 @@ class InProcessSoftware(Software):
     """Software driven through its Python API in the current process.
 
     Subclasses implement :meth:`build`, :meth:`compute` and :meth:`collect`;
-    ``amac.assets._dummy.inprocess`` is a minimal example.
+    ``amac.assets.demonnano.demonnano`` is a complete example.
     """
 
     EXECUTION = "INPROCESS"

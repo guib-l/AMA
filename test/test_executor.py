@@ -1,20 +1,22 @@
 """Tests of amac.engine.execute and of the run phase of FileIOSoftware."""
 
-import json
+import os
 import sys
 import time
 from pathlib import Path
 
 import pytest
 
-from amac.assets._dummy.dummy import DummySoftware
+from amac.assets.dftbplus.dftbplus import DftbPlus
 from amac.engine.context import RunContext
 from amac.engine.execute import (
     ExecResult,
     LocalExecutor,
+    applied_environment,
     build_environment,
     finalize_run_directory,
     make_run_directory,
+    run_overrides,
 )
 from amac.exceptions import RunError
 from amac.parameter.parameters import CalculationSpec, ExecutionSpec
@@ -30,33 +32,18 @@ time.sleep(10)
 """
 
 
-class FailingDummy(DummySoftware):
-    def command(self, ctx):
-        return [PYTHON, "-c", "import sys; sys.stderr.write('bad'); sys.exit(3)"]
-
-
-class SleepingDummy(DummySoftware):
-    def command(self, ctx):
-        return [PYTHON, "-c", "import time; time.sleep(10)"]
-
-
-class RedirectedDummy(DummySoftware):
-    def stdout_file(self, ctx):
-        return Path("dummy.log")
-
-
 def python(code: str) -> list[str]:
     return [PYTHON, "-c", code]
 
 
-def make_ctx(directory: Path, **exec_kwargs) -> RunContext:
+def make_ctx(directory: Path, atoms=None, **exec_kwargs) -> RunContext:
     spec = CalculationSpec.from_kwargs(
-        method="DFT",
-        method_args={"variant": "PBE"},
-        parameters={"BASIS": "sto-3g"},
+        method="TIGHT_BINDING",
+        method_args={"variant": "DFTB2", "MaxAngularMomentum": {"O": "p", "H": "s"}},
+        parameters={"SLATER_KOSTER_FILES": {"variant": "Type2FileNames"}},
     )
     exec_spec = ExecutionSpec(workdir=directory, **exec_kwargs)
-    return RunContext(None, spec, exec_spec, directory)
+    return RunContext(atoms, spec, exec_spec, directory, software=DftbPlus())
 
 
 def is_dead(pid: int) -> bool:
@@ -119,6 +106,35 @@ def test_omp_num_threads(tmp_path, env, expected):
     code = "import os; print(os.environ['OMP_NUM_THREADS'])"
     result = LocalExecutor().run(python(code), tmp_path, env=environment)
     assert result.stdout == f"{expected}\n"
+
+
+def test_run_overrides_is_the_delta_of_build_environment():
+    """Both ways of giving a run its environment follow the same rule."""
+    overrides = run_overrides(3, {"DFTB_PREFIX": "/slako"})
+    assert overrides == {"OMP_NUM_THREADS": "3", "DFTB_PREFIX": "/slako"}
+    assert build_environment(3, {"DFTB_PREFIX": "/slako"}).items() >= overrides.items()
+
+
+def test_applied_environment_restores_the_previous_values(monkeypatch):
+    monkeypatch.setenv("OMP_NUM_THREADS", "8")
+    monkeypatch.delenv("DFTB_PREFIX", raising=False)
+
+    with applied_environment(2, {"DFTB_PREFIX": "/slako"}) as applied:
+        assert applied == {"OMP_NUM_THREADS": "2", "DFTB_PREFIX": "/slako"}
+        assert os.environ["OMP_NUM_THREADS"] == "2"
+        assert os.environ["DFTB_PREFIX"] == "/slako"
+
+    # A variable that existed keeps its value; one that did not is removed.
+    assert os.environ["OMP_NUM_THREADS"] == "8"
+    assert "DFTB_PREFIX" not in os.environ
+
+
+def test_applied_environment_restores_after_a_failure(monkeypatch):
+    monkeypatch.delenv("OMP_NUM_THREADS", raising=False)
+    with pytest.raises(ZeroDivisionError), applied_environment(4):
+        assert os.environ["OMP_NUM_THREADS"] == "4"
+        1 / 0
+    assert "OMP_NUM_THREADS" not in os.environ
 
 
 @pytest.mark.parametrize(
@@ -210,46 +226,63 @@ def test_finalize_removes_files_unless_kept(tmp_path, outdir):
         assert (copy / "result.txt").exists()
 
 
-def test_dummy_prepare_run_collect(tmp_path):
-    ctx = make_ctx(tmp_path, cpu=2)
-    software = DummySoftware()
+def test_fileio_prepare_run_collect(tmp_path, water, dftbp_stub, dftbp_configured):
+    """The three phases of a file-based software, on the stub program."""
+    ctx = make_ctx(tmp_path, water, cpu=2, executable=str(dftbp_stub()))
+    software = DftbPlus()
     software.prepare(ctx)
     software.run(ctx)
     software.collect(ctx)
+
     assert ctx.return_code == 0
-    assert ctx.stdout == "dummy: done\n"
     assert ctx.timings["run"] > 0
-    assert ctx.files == {"output.json": tmp_path / "output.json"}
-    output = json.loads(ctx.files["output.json"].read_text(encoding="utf-8"))
-    assert output == {"energy": -1.0, "forces": [], "method": "DFT"}
+    assert sorted(ctx.files) == ["detailed.out", "dftb.out", "results.tag"]
+    # DFTB+ writes its log on the standard output, which AMAC redirects.
+    assert ctx.stdout is None
+    assert "stub dftb+" in (tmp_path / "dftb.out").read_text(encoding="utf-8")
 
 
-def test_dummy_stdout_redirection(tmp_path):
-    ctx = make_ctx(tmp_path)
-    software = RedirectedDummy()
+def test_fileio_stdout_is_captured_without_a_stdout_file(
+    tmp_path, water, dftbp_stub, dftbp_configured
+):
+    """A software that redirects nothing gets its output in ``ctx.stdout``."""
+
+    class CapturedDftbPlus(DftbPlus):
+        def stdout_file(self, ctx):
+            return None
+
+    ctx = make_ctx(tmp_path, water, executable=str(dftbp_stub()))
+    software = CapturedDftbPlus()
     software.prepare(ctx)
     software.run(ctx)
-    assert ctx.stdout is None
-    assert (tmp_path / "dummy.log").read_text(encoding="utf-8") == "dummy: done\n"
+    assert ctx.stdout.startswith("stub dftb+:")
+    assert not (tmp_path / "dftb.out").exists()
 
 
-def test_dummy_non_zero_return_code_raises(tmp_path):
-    ctx = make_ctx(tmp_path)
+def test_non_zero_return_code_raises(tmp_path, water, dftbp_stub, dftbp_configured):
+    ctx = make_ctx(tmp_path, water, executable=str(dftbp_stub(return_code=3, stderr="bad")))
+    DftbPlus().prepare(ctx)
     with pytest.raises(RunError, match="code 3") as excinfo:
-        FailingDummy().run(ctx)
+        DftbPlus().run(ctx)
     assert excinfo.value.ctx is ctx
     assert (ctx.return_code, ctx.stderr) == (3, "bad")
 
 
-def test_dummy_non_zero_return_code_recorded(tmp_path):
-    ctx = make_ctx(tmp_path, raise_on_error=False)
-    FailingDummy().run(ctx)
+def test_non_zero_return_code_recorded(tmp_path, water, dftbp_stub, dftbp_configured):
+    executable = str(dftbp_stub(return_code=3, stderr="bad"))
+    ctx = make_ctx(tmp_path, water, raise_on_error=False, executable=executable)
+    DftbPlus().prepare(ctx)
+    DftbPlus().run(ctx)
     assert (ctx.return_code, ctx.stderr) == (3, "bad")
 
 
-def test_dummy_timeout(tmp_path):
-    ctx = make_ctx(tmp_path, timeout=0.2, raise_on_error=False)
+def test_run_timeout(tmp_path, water, dftbp_stub, dftbp_configured):
+    executable = str(dftbp_stub(delay=10))
+    ctx = make_ctx(
+        tmp_path, water, timeout=0.2, raise_on_error=False, executable=executable
+    )
+    DftbPlus().prepare(ctx)
     with pytest.raises(RunError, match="timed out") as excinfo:
-        SleepingDummy().run(ctx)
+        DftbPlus().run(ctx)
     assert excinfo.value.ctx is ctx
     assert ctx.return_code is None

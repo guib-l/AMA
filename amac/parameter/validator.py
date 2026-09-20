@@ -25,7 +25,7 @@ How the spec is matched against the schema:
 - ``raw`` is never validated, nor are the free-text ``CONDITION`` fields.
 
 ``MANDATORY_IF``, ``EXCLUDE_IF`` and ``REQUIRES`` follow the semantics documented in
-``amac/assets/DOC_SCHEMA.md``: condition paths are input locations, built from
+``DOC_SCHEMA.md``: condition paths are input locations, built from
 ``PATH`` / ``TARGET`` and ``KEYWORD``.
 """
 

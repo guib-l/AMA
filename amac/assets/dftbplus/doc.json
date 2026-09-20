@@ -12,7 +12,6 @@
         "ARGUMENTS": [],
         "STDIN": false,
         "ENVIRONMENT": {
-            "DFTB_PREFIX": "Répertoire des fichiers Slater-Koster.",
             "DFTBPLUS_PARAM_DIR": "Répertoire additionnel de recherche des fichiers de paramètres (ChIMES, tblite).",
             "OMP_NUM_THREADS": "Nombre de threads OpenMP."
         },
@@ -287,6 +286,7 @@
         },
 
         "MODES": {
+            "ALIASES": ["FREQUENCIES"],
             "KEYWORD": null,
             "BINARY": "modes",
             "CANONICAL": {"FREQUENCIES": {"EQUIVALENCE": "APPROX", "NOTE": "Modes normaux et intensités IR/Raman sans thermochimie ; programme modes lancé après SecondDerivatives."}},
@@ -307,6 +307,7 @@
 
     "METHODS": {
         "TIGHT_BINDING": {
+            "ALIASES": ["DFTB"],
             "KEYWORD": "DFTB",
             "PATH": ["Hamiltonian"],
             "CANONICAL": "DFTB",
@@ -456,12 +457,12 @@
             "CONDITION": "SCC = Yes",
             "VALUES": ["None", "Colinear", "NonColinear"],
             "ARGUMENTS": {
-                "Colinear": {"TYPE": "BLOCK", "CANONICAL": "UNRESTRICTED", "ARGUMENTS": {
+                "Colinear": {"TYPE": "BLOCK", "ARGUMENTS": {
                     "UnpairedElectrons": {"TYPE": "REAL", "DEFAULT": 0},
                     "RelaxTotalSpin": {"TYPE": "FLAG", "DEFAULT": false, "DESCRIPTION": "Niveau de Fermi commun aux deux canaux : la polarisation totale peut évoluer."},
                     "InitialSpins": {"TYPE": "BLOCK", "DEFAULT": null}
                 }},
-                "NonColinear": {"TYPE": "BLOCK", "CANONICAL": "GENERALISED", "ARGUMENTS": {"InitialSpins": {"TYPE": "BLOCK"}}}
+                "NonColinear": {"TYPE": "BLOCK", "ARGUMENTS": {"InitialSpins": {"TYPE": "BLOCK"}}}
             },
             "COMPANION": {
                 "SpinConstants": {"TYPE": "BLOCK", "PATH": ["Hamiltonian", "DFTB", "SpinConstants"], "MANDATORY_IF": [{"PATH": ["Hamiltonian", "DFTB", "SpinPolarisation"], "VALUE": "SET"}], "UNIT": "Hartree", "PAGE": 46},
@@ -474,7 +475,6 @@
         "SPIN_ORBIT": {
             "TYPE": "BLOCK",
             "PATH": ["Hamiltonian", "DFTB", "SpinOrbit"],
-            "CANONICAL": "SPIN_ORBIT_COUPLING",
             "DEFAULT": null,
             "CONDITION": "SpinPolarisation != Colinear",
             "DESCRIPTION": "Couplage Russel-Saunders (spin-orbite), constantes par espèce.",
@@ -517,9 +517,9 @@
                 "FixedFermiLevel": {"TYPE": "LIST", "SUBTYPE": "REAL", "UNIT": "energy", "DESCRIPTION": "Fixe le potentiel chimique (1 valeur, ou 2 pour le spin colinéaire). Charge et spin totaux ne sont alors plus conservés."}
             },
             "ARGUMENTS": {
-                "Fermi": {"TYPE": "BLOCK", "CANONICAL": "FERMI_DIRAC"},
-                "MethfesselPaxton": {"TYPE": "BLOCK", "CANONICAL": "METHFESSEL_PAXTON", "ARGUMENTS": {"Order": {"TYPE": "INTEGER", "DEFAULT": 1, "RANGE": [1, 10]}}},
-                "Gaussian": {"TYPE": "BLOCK", "CANONICAL": "GAUSSIAN_SMEARING", "NOTE": "Équivalent à MethfesselPaxton d'ordre 0."}
+                "Fermi": {"ALIASES": ["FERMI_DIRAC"], "TYPE": "BLOCK", "CANONICAL": "FERMI_DIRAC"},
+                "MethfesselPaxton": {"ALIASES": ["METHFESSEL_PAXTON"], "TYPE": "BLOCK", "CANONICAL": "METHFESSEL_PAXTON", "ARGUMENTS": {"Order": {"TYPE": "INTEGER", "DEFAULT": 1, "RANGE": [1, 10]}}},
+                "Gaussian": {"ALIASES": ["GAUSSIAN_SMEARING"], "TYPE": "BLOCK", "CANONICAL": "GAUSSIAN_SMEARING", "NOTE": "Équivalent à MethfesselPaxton d'ordre 0."}
             },
             "DESCRIPTION": "Occupation des niveaux monoélectroniques. À température finie, utiliser l'énergie libre de Mermin (E - TS).",
             "PAGE": 51
@@ -530,15 +530,13 @@
             "PATH": ["Hamiltonian", "DFTB", "SlaterKosterFiles"],
             "MANDATORY": true,
             "VARIANTS": {
-                "EXPLICIT": {"DESCRIPTION": "Une entrée par paire ordonnée d'espèces : Ga-As = \"./Ga-As.skf\". Prefix accepté."},
+                "EXPLICIT": {"DESCRIPTION": "Une entrée par paire ordonnée d'espèces : Ga-As = \"Ga-As.skf\". Prefix n'est pas accepté dans la spec : AMAC l'écrit depuis BASIS (env de config-amac.json)."},
                 "TYPE2FILENAMES": {"KEYWORD": "Type2FileNames", "ARGUMENTS": {
-                    "Prefix": {"TYPE": "STRING", "DEFAULT": ""},
                     "Suffix": {"TYPE": "STRING", "DEFAULT": ".skf"},
                     "Separator": {"TYPE": "STRING", "DEFAULT": "-"},
                     "LowerCaseTypeName": {"TYPE": "FLAG", "DEFAULT": false}
                 }}
             },
-            "SEARCH_PATH": "DFTBPLUS_PARAM_DIR",
             "COMMON_SETS": ["mio", "3ob", "pbc", "matsci", "trans3d", "znorg", "halorg", "ob2"],
             "DESCRIPTION": "Fichiers de paramètres Slater-Koster pour chaque paire d'espèces.",
             "PAGE": 53
@@ -550,9 +548,9 @@
             "CONDITION": "Periodic = Yes",
             "MODIFIERS": ["relative", "absolute"],
             "VARIANTS": {
-                "EXPLICIT": {"TYPE": "TABLE", "COLUMNS": 4, "CANONICAL": "EXPLICIT_KPOINTS", "DESCRIPTION": "kx ky kz poids par ligne (2 coordonnées + poids en symétrie hélicoïdale)."},
-                "SupercellFolding": {"TYPE": "TABLE", "SHAPE": [4, 3], "CANONICAL": {"MONKHORST_PACK": {"NOTE": "Matrice de repliement diagonale ; une matrice quelconque va au-delà de Monkhorst-Pack."}}, "DESCRIPTION": "9 entiers (matrice de repliement) + 3 réels (décalage). Le Monkhorst-Pack l1 x l2 x l3 correspond à la matrice diagonale.", "NO_MODIFIER": true},
-                "KLines": {"TYPE": "TABLE", "CANONICAL": "BAND_PATH", "DESCRIPTION": "Chemin de bande : nombre de points + coordonnées du point d'arrivée par ligne. Force MaxSCCIterations à 1 par défaut."},
+                "EXPLICIT": {"ALIASES": ["EXPLICIT_KPOINTS"], "TYPE": "TABLE", "COLUMNS": 4, "CANONICAL": "EXPLICIT_KPOINTS", "DESCRIPTION": "kx ky kz poids par ligne (2 coordonnées + poids en symétrie hélicoïdale)."},
+                "SupercellFolding": {"ALIASES": ["MONKHORST_PACK"], "TYPE": "TABLE", "SHAPE": [4, 3], "CANONICAL": {"MONKHORST_PACK": {"NOTE": "Matrice de repliement diagonale ; une matrice quelconque va au-delà de Monkhorst-Pack."}}, "DESCRIPTION": "9 entiers (matrice de repliement) + 3 réels (décalage). Le Monkhorst-Pack l1 x l2 x l3 correspond à la matrice diagonale.", "NO_MODIFIER": true},
+                "KLines": {"ALIASES": ["BAND_PATH"], "TYPE": "TABLE", "CANONICAL": "BAND_PATH", "DESCRIPTION": "Chemin de bande : nombre de points + coordonnées du point d'arrivée par ligne. Force MaxSCCIterations à 1 par défaut."},
                 "HelicalUniform": {"TYPE": "LIST", "CONDITION": "Helical = Yes"},
                 "HelicalSampled": {"TYPE": "LIST", "CONDITION": "Helical = Yes"}
             },
@@ -566,11 +564,11 @@
             "DEFAULT": null,
             "VALUES": ["LennardJones", "SlaterKirkwood", "DftD3", "SimpleDftD3", "DftD4", "Ts", "Mbd"],
             "ARGUMENTS": {
-                "LennardJones": {"TYPE": "BLOCK", "CANONICAL": "LENNARD_JONES", "ARGUMENTS": {
+                "LennardJones": {"ALIASES": ["LENNARD_JONES"], "TYPE": "BLOCK", "CANONICAL": "LENNARD_JONES", "ARGUMENTS": {
                     "Parameters": {"TYPE": "CHOICE", "VALUES": ["UFFParameters", "EXPLICIT"], "DESCRIPTION": "UFFParameters{} ou paramètres Distance/Energy par espèce."}
                 }},
-                "SlaterKirkwood": {"TYPE": "BLOCK", "CANONICAL": "SLATER_KIRKWOOD", "DESCRIPTION": "Modèle atomique polarisable de Slater-Kirkwood (annexe F)."},
-                "DftD3": {"TYPE": "BLOCK", "LIBRARY": "s-dftd3", "CANONICAL": {"D3(BJ)": {"SETS": {"Damping": "BeckeJohnson"}}, "D3(0)": {"SETS": {"Damping": "ZeroDamping"}}, "D3M(BJ)": {"SETS": {"Damping": "ModifiedBeckeJohnson"}}}, "ARGUMENTS": {
+                "SlaterKirkwood": {"ALIASES": ["SLATER_KIRKWOOD"], "TYPE": "BLOCK", "CANONICAL": "SLATER_KIRKWOOD", "DESCRIPTION": "Modèle atomique polarisable de Slater-Kirkwood (annexe F)."},
+                "DftD3": {"ALIASES": ["D3(0)", "D3M(BJ)"], "TYPE": "BLOCK", "LIBRARY": "s-dftd3", "CANONICAL": {"D3(BJ)": {"SETS": {"Damping": "BeckeJohnson"}}, "D3(0)": {"SETS": {"Damping": "ZeroDamping"}}, "D3M(BJ)": {"SETS": {"Damping": "ModifiedBeckeJohnson"}}}, "ARGUMENTS": {
                     "Damping": {"TYPE": "CHOICE", "VALUES": ["BeckeJohnson", "ZeroDamping", "ModifiedBeckeJohnson"], "ARGUMENTS": {"a1": {"TYPE": "REAL"}, "a2": {"TYPE": "REAL"}}},
                     "s6": {"TYPE": "REAL", "DEFAULT": 1.0},
                     "s8": {"TYPE": "REAL"},
@@ -578,7 +576,7 @@
                     "HHRepulsion": {"TYPE": "FLAG", "DEFAULT": false}
                 }},
                 "SimpleDftD3": {"TYPE": "BLOCK", "CANONICAL": {"D3(BJ)": {"NOTE": "Implémentation interne de DFTB+, sans la bibliothèque s-dftd3."}}, "ARGUMENTS": {"a1": {"TYPE": "REAL"}, "a2": {"TYPE": "REAL"}, "s6": {"TYPE": "REAL"}, "s8": {"TYPE": "REAL"}}, "DESCRIPTION": "Implémentation interne D3(BJ), disponible sans la bibliothèque s-dftd3."},
-                "DftD4": {"TYPE": "BLOCK", "CANONICAL": "D4", "ARGUMENTS": {"s6": {"TYPE": "REAL"}, "s8": {"TYPE": "REAL"}, "s9": {"TYPE": "REAL"}, "a1": {"TYPE": "REAL"}, "a2": {"TYPE": "REAL"}, "ChargeScaling": {"TYPE": "FLAG"}}},
+                "DftD4": {"ALIASES": ["D4"], "TYPE": "BLOCK", "CANONICAL": "D4", "ARGUMENTS": {"s6": {"TYPE": "REAL"}, "s8": {"TYPE": "REAL"}, "s9": {"TYPE": "REAL"}, "a1": {"TYPE": "REAL"}, "a2": {"TYPE": "REAL"}, "ChargeScaling": {"TYPE": "FLAG"}}},
                 "Ts": {"TYPE": "BLOCK", "CANONICAL": "TS", "DESCRIPTION": "Tkatchenko-Scheffler adapté à DFTB."},
                 "Mbd": {"TYPE": "BLOCK", "CANONICAL": "MBD", "DESCRIPTION": "MBD@rsSCS (dispersion many-body)."}
             },
@@ -620,9 +618,8 @@
         "ORBITAL_POTENTIAL": {
             "TYPE": "BLOCK",
             "PATH": ["Hamiltonian", "DFTB", "OrbitalPotential"],
-            "CANONICAL": "HUBBARD_U",
             "CONDITION": "SpinPolarisation != {}",
-            "VARIANTS": {"FLL": {"KEYWORD": "FLL", "CANONICAL": "FLL"}},
+            "VARIANTS": {"FLL": {"KEYWORD": "FLL"}},
             "DESCRIPTION": "Contributions dépendantes de l'orbitale (DFT+U / LDA+U de type FLL).",
             "PAGE": 57
         },
@@ -631,13 +628,13 @@
             "TYPE": "BLOCK",
             "PATH": ["Hamiltonian", "DFTB", "ElectricField"],
             "ARGUMENTS": {
-                "External": {"TYPE": "BLOCK", "CANONICAL": "ELECTRIC_FIELD", "ARGUMENTS": {
+                "External": {"ALIASES": ["ELECTRIC_FIELD"], "TYPE": "BLOCK", "CANONICAL": "ELECTRIC_FIELD", "ARGUMENTS": {
                     "Direction": {"TYPE": "LIST", "LENGTH": 3},
                     "Strength": {"TYPE": "REAL", "UNIT": "electric_field"},
                     "Frequency": {"TYPE": "REAL", "UNIT": "frequency"},
                     "Phase": {"TYPE": "REAL"}
                 }},
-                "PointCharges": {"TYPE": "BLOCK", "CANONICAL": "POINT_CHARGES", "ARGUMENTS": {
+                "PointCharges": {"ALIASES": ["POINT_CHARGES"], "TYPE": "BLOCK", "CANONICAL": "POINT_CHARGES", "ARGUMENTS": {
                     "CoordsAndCharges": {"TYPE": "TABLE", "UNIT": "length"},
                     "GaussianBlurWidth": {"TYPE": "REAL", "UNIT": "length"}
                 }}

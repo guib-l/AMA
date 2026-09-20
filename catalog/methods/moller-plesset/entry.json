@@ -4,11 +4,7 @@
         "MPN"
     ],
     "VARIANT_REQUIRED": true,
-    "ACCEPTS": [
-        "REFERENCE",
-        "INTEGRAL_APPROXIMATION",
-        "LOCAL_CORRELATION"
-    ],
+    "ACCEPTS": [],
     "DESCRIPTION": "Théorie des perturbations de Møller-Plesset. RI et DLPNO sont des axes (INTEGRAL_APPROXIMATION, LOCAL_CORRELATION), pas des variantes.",
     "VARIANTS": {
         "MP2": {},
