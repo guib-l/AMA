@@ -1,7 +1,7 @@
 """Canonical catalog of AMAC and its links with the ``doc.json`` files.
 
 The catalog (``catalog/<kind_dir>/<slug>/entry.json`` at the repository root, format
-described in ``CATALOG_SCHEMA.md``) names methods, modules and options independently
+described in ``docs/CATALOG_SCHEMA.md``) names methods, modules and options independently
 of any software. A ``doc.json`` node points to a catalog entry with ``CANONICAL``:
 :func:`links` reads these pointers.
 """

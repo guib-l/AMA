@@ -95,6 +95,7 @@ Reprend le vocabulaire déjà en place (`TYPE`, `DEFAULT`, `MANDATORY`, `MANDATO
 | `SETS` | dans une variante : valeurs imposées à des options quand elle est choisie |
 | `COMPANION` | dans une entrée de `PARAMETERS` : paramètres associés |
 | `COMMON_ARGUMENTS` | dans un `CHOICE` : arguments valables pour tous les choix |
+| `SCALAR` | dans un `CHOICE` : argument que remplit une valeur nue |
 | `CONDITION` | texte libre documentaire, non interprété |
 | `FORMAT` | rendu textuel (voir ci-dessous) |
 | `ALIASES` | synonymes acceptés en entrée utilisateur |
@@ -218,7 +219,8 @@ même forme que celles des méthodes (`KEYWORD`, `PATH`, `ALIASES`, `ARGUMENTS`,
   `VALUES`, un choix qui ne désigne ni une entrée d'`ARGUMENTS` ni une variante est
   refusé.
   Exemple DFTB+ : `"KPOINTS": {"SupercellFolding": [[4, 0, 0], [0, 4, 0], [0, 0, 4],
-  [0.5, 0.5, 0.5]]}`.
+  [0.5, 0.5, 0.5]]}`. Une option `CHOICE` déclarant `SCALAR` accepte en plus une valeur
+  nue (voir « `SCALAR` »).
 - **Emplacements** (option non `CHOICE`) : l'option est enregistrée avec le `KEYWORD`
   de la variante (ou sa clé) pour valeur ; les `ARGUMENTS` de la variante sont placés
   sous `emplacement de la variante + KEYWORD`, l'emplacement de la variante étant son
@@ -263,7 +265,23 @@ les choix. Le contenu de `{choix: options}` doit alors être un dict ; il est v�
 contre `COMMON_ARGUMENTS` fusionnés avec les `ARGUMENTS` de l'entrée du choix (l'entrée
 l'emporte), et placé sous `emplacement du choix + KEYWORD`.
 
-Exemple DFTB+ : `"FILLING": {"Fermi": {"Temperature": 0.001}}`.
+Exemple DFTB+ : `"SMEARING": {"Fermi": {"Temperature": 0.001}}`.
+
+### `SCALAR`
+
+`SCALAR`, dans une option `CHOICE`, nomme l'argument que remplit une **valeur nue**,
+c'est-à-dire une valeur qui n'est ni un texte (qui désignerait un choix) ni un dict
+`{choix: options}`. La valeur est lue comme `{DEFAULT: {SCALAR: valeur}}` : le choix
+est celui du `DEFAULT` de l'option, les autres arguments gardent leur `DEFAULT`, qui
+n'est pas écrit. L'argument nommé est cherché dans les `COMMON_ARGUMENTS` de l'option
+et dans les `ARGUMENTS` du choix retenu ; sa valeur est ensuite vérifiée comme si elle
+avait été donnée explicitement (`TYPE`, `RANGE`…).
+
+Une option déclarant `SCALAR` sans `DEFAULT` utilisable (texte non vide) est une erreur
+du `doc.json` : `Issue` du validateur, `ValidationError` du composer.
+
+Exemple DFTB+ : `"SMEARING": 0.0001` vaut `{"Fermi": {"Temperature": 0.0001}}`, écrit
+`Filling = Fermi { Temperature [Hartree] = 0.0001 }`.
 
 ### `CONDITION`
 
@@ -315,8 +333,8 @@ keywords: ["PBE"]
   donc dans `keywords`, même si sa famille a un `PATH`.
 - `CHOICE` : le choix est la valeur de l'emplacement, les options de
   `{choix: options}` sont placées sous `emplacement + [choix]`.
-- Variantes d'options, `SETS`, `COMPANION` et `COMMON_ARGUMENTS` : voir la section
-  précédente. Les valeurs imposées par `SETS` sont écrites pour les options absentes.
+- Variantes d'options, `SETS`, `COMPANION`, `COMMON_ARGUMENTS` et `SCALAR` : voir la
+  section précédente. Les valeurs imposées par `SETS` sont écrites pour les options absentes.
 - Contenu non décrit (nœud sans `ARGUMENTS`) : recopié tel quel, un dict devenant des
   sous-emplacements.
 - Les chemins fusionnent sans tenir compte de la casse : la première écriture fixe

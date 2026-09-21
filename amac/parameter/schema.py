@@ -1,6 +1,6 @@
 """Loading of the ``doc.json`` files and read-only access to their content.
 
-The expected format is described in ``DOC_SCHEMA.md``, at the repository root.
+The expected format is described in ``docs/DOC_SCHEMA.md``.
 """
 
 from __future__ import annotations

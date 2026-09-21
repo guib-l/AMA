@@ -116,7 +116,7 @@ def test_single_point_does_not_inject_print_forces(schema):
 def test_units_are_written_with_the_dftbplus_names(schema):
     parameters = {
         "SLATER_KOSTER_FILES": {"variant": "Type2FileNames"},
-        "FILLING": {"Fermi": {"Temperature": 0.001}},
+        "SMEARING": {"Fermi": {"Temperature": 0.001}},
     }
     text = compose(schema, make_spec(parameters=parameters), molecule("H2O"))
     assert "Temperature [Hartree] = 0.001" in text

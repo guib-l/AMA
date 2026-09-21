@@ -506,11 +506,14 @@
             "PAGE": 47
         },
 
-        "FILLING": {
+        "SMEARING": {
             "TYPE": "CHOICE",
             "PATH": ["Hamiltonian", "DFTB", "Filling"],
+            "ALIASES": ["FILLING"],
+            "CANONICAL": "SMEARING",
             "DEFAULT": "Fermi",
             "VALUES": ["Fermi", "MethfesselPaxton", "Gaussian"],
+            "SCALAR": "Temperature",
             "COMMON_ARGUMENTS": {
                 "Temperature": {"TYPE": "REAL", "DEFAULT": 0.0, "UNIT": "energy", "CONDITION": "AdaptFillingTemp = No"},
                 "IndependentKFilling": {"TYPE": "FLAG", "DEFAULT": false, "CONDITION": "Periodic = Yes"},
@@ -521,7 +524,7 @@
                 "MethfesselPaxton": {"ALIASES": ["METHFESSEL_PAXTON"], "TYPE": "BLOCK", "CANONICAL": "METHFESSEL_PAXTON", "ARGUMENTS": {"Order": {"TYPE": "INTEGER", "DEFAULT": 1, "RANGE": [1, 10]}}},
                 "Gaussian": {"ALIASES": ["GAUSSIAN_SMEARING"], "TYPE": "BLOCK", "CANONICAL": "GAUSSIAN_SMEARING", "NOTE": "Équivalent à MethfesselPaxton d'ordre 0."}
             },
-            "DESCRIPTION": "Occupation des niveaux monoélectroniques. À température finie, utiliser l'énergie libre de Mermin (E - TS).",
+            "DESCRIPTION": "Occupation des niveaux monoélectroniques (élargissement électronique). À température finie, utiliser l'énergie libre de Mermin (E - TS). Une valeur nue est la température du choix par défaut : \"SMEARING\": 0.0001.",
             "PAGE": 51
         },
 

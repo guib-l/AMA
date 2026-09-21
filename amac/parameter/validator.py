@@ -21,7 +21,9 @@ How the spec is matched against the schema:
 - A ``CHOICE`` value is either the choice itself (``"Broyden"``) or a one-item
   mapping ``{choice: options}``. The choice designates an entry of ``ARGUMENTS`` or
   of ``VARIANTS``; ``options`` is checked against that entry, merged with the
-  ``COMMON_ARGUMENTS`` of the ``CHOICE``.
+  ``COMMON_ARGUMENTS`` of the ``CHOICE``. A ``CHOICE`` declaring ``SCALAR`` also
+  accepts a bare value, read as that argument of its ``DEFAULT`` choice:
+  ``0.0001`` stands for ``{"Fermi": {"Temperature": 0.0001}}``.
 - ``raw`` is never validated, nor are the free-text ``CONDITION`` fields.
 
 ``MANDATORY_IF``, ``EXCLUDE_IF`` and ``REQUIRES`` follow the semantics documented in
@@ -295,6 +297,12 @@ class _Checker:
         node = slot.node
         self.present.append(slot)
         node_type = node.get("TYPE")
+        if node_type == "CHOICE" and "SCALAR" in node:
+            try:
+                value = _expand_scalar(node, value)
+            except ValidationError as err:
+                self._error(slot.spec_path, str(err))
+                return
         type_check = _TYPE_CHECKS.get(node_type)
         if type_check is not None and not type_check(value):
             self._error(
@@ -502,6 +510,36 @@ def _resolve_choice(
             key = resolve_name(nodes, choice, kind="choice")
             return key, nodes[key]
     return choice, None
+
+
+def _expand_scalar(node: Mapping[str, Any], value: Any) -> Any:
+    """Expand a bare value given to a ``CHOICE`` declaring ``SCALAR``.
+
+    Args:
+        node: Schema node of the ``CHOICE``; its ``SCALAR`` names the argument
+            receiving the value and its ``DEFAULT`` the choice to use.
+        value: Value given by the user.
+
+    Returns:
+        ``{DEFAULT: {SCALAR: value}}`` for a bare value, ``value`` unchanged when
+        it already designates a choice (a str) or a ``{choice: options}`` mapping.
+
+    Raises:
+        ValidationError: If ``SCALAR`` is not a name, or ``DEFAULT`` is not a
+            choice to expand to (error of the ``doc.json``).
+    """
+    scalar = node["SCALAR"]
+    if not isinstance(scalar, str) or not scalar:
+        raise ValidationError(f"SCALAR must name an argument, got {scalar!r}")
+    if isinstance(value, Mapping | str):
+        return value
+    default = node.get("DEFAULT")
+    if not isinstance(default, str) or not default:
+        raise ValidationError(
+            f"a bare value needs a DEFAULT choice to carry {scalar}, "
+            f"but DEFAULT is {default!r}"
+        )
+    return {default: {scalar: value}}
 
 
 def _declared_path(node: Mapping[str, Any], key: str = "PATH") -> _Path:

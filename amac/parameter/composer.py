@@ -8,7 +8,8 @@ software-independent intermediate tree built from the ``KEYWORD``, ``PATH`` and
 Values are placed at the input locations documented in
 ``DOC_SCHEMA.md`` and used by the validator, so that condition paths and
 tree paths designate the same locations. Variants of options, ``SETS``,
-``COMPANION`` and ``COMMON_ARGUMENTS`` follow the same rules as in the validator.
+``COMPANION``, ``COMMON_ARGUMENTS`` and ``SCALAR`` follow the same rules as in the
+validator.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from amac.parameter.validator import (
     VARIANT_KEY,
     _base,
     _declared_path,
+    _expand_scalar,
     _locate,
     _parameter_scope,
     _resolve_choice,
@@ -521,6 +523,8 @@ class _Translator:
     def _value(self, node: Mapping[str, Any], value: Any, path: _Path) -> None:
         target = self._node(path, node)
         if node.get("TYPE") == "CHOICE":
+            if "SCALAR" in node:
+                value = _expand_scalar(node, value)
             self._choice(target, node, value, path)
         elif isinstance(value, Mapping):
             if "VARIANTS" in node:

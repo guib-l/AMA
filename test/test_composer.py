@@ -284,7 +284,7 @@ def test_option_variants_reach_their_declared_location(dftbplus_schema):
         parameters={
             "SLATER_KOSTER_FILES": {"variant": "Type2FileNames"},
             "KPOINTS": {"SupercellFolding": FOLDING},
-            "FILLING": {"Fermi": {"Temperature": 0.001}},
+            "SMEARING": {"Fermi": {"Temperature": 0.001}},
         }
     )
     dftb = node_at(translate(spec, dftbplus_schema), "Hamiltonian", "DFTB").children
@@ -293,3 +293,20 @@ def test_option_variants_reach_their_declared_location(dftbplus_schema):
     assert dftb["KPointsAndWeights"].children["SupercellFolding"].value == FOLDING
     temperature = dftb["Filling"].children["Fermi"].children["Temperature"]
     assert temperature.value == pytest.approx(0.001, abs=1e-15)
+
+
+def test_a_bare_value_fills_the_scalar_argument_of_the_default_choice(dftbplus_schema):
+    """``SMEARING`` declares ``SCALAR``: 0.001 is Fermi at that temperature."""
+    spec = dftbp_spec(
+        parameters={
+            "SLATER_KOSTER_FILES": {"variant": "Type2FileNames"},
+            "SMEARING": 0.001,
+        }
+    )
+    filling = node_at(translate(spec, dftbplus_schema), "Hamiltonian", "DFTB", "Filling")
+    assert filling.value == "Fermi"
+    temperature = filling.children["Fermi"].children["Temperature"]
+    assert temperature.value == pytest.approx(0.001, abs=1e-15)
+    assert temperature.unit == "energy"
+    # Only the named argument is written: the other DEFAULT values stay out.
+    assert list(filling.children["Fermi"].children) == ["Temperature"]

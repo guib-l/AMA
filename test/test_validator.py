@@ -5,6 +5,7 @@ The rules checked here are generic (variants, ``SETS``, ``COMMON_ARGUMENTS``,
 only provide the declarations they apply to.
 """
 
+import json
 import warnings
 from pathlib import Path
 
@@ -15,7 +16,7 @@ from ase.build import bulk, molecule
 import amac
 from amac.exceptions import ValidationError
 from amac.parameter.parameters import CalculationSpec
-from amac.parameter.schema import load
+from amac.parameter.schema import REQUIRED_KEYS, load
 from amac.parameter.validator import MODES, Issue, validate
 
 ASSETS = Path(amac.__file__).parent / "assets"
@@ -144,7 +145,7 @@ def test_unknown_argument_is_reported_with_its_path(dftbplus):
 def test_option_variants_and_their_arguments(dftbplus):
     spec = dftb_spec(
         KPOINTS={"SupercellFolding": FOLDING},
-        FILLING={"Fermi": {"Temperature": 0.001}},
+        SMEARING={"Fermi": {"Temperature": 0.001}},
     )
     assert validate(spec, dftbplus) == []
 
@@ -162,8 +163,8 @@ def test_option_variants_and_their_arguments(dftbplus):
             "parameters.SLATER_KOSTER_FILES.Prefix",
         ),
         (
-            {"FILLING": {"Fermi": {"Temprature": 0.001}}},
-            "parameters.FILLING.Fermi.Temprature",
+            {"SMEARING": {"Fermi": {"Temprature": 0.001}}},
+            "parameters.SMEARING.Fermi.Temprature",
         ),
         (
             {"SPIN_POLARISATION": {"Colinear": {"UnpairedElectrons": 2.0}}},
@@ -180,6 +181,49 @@ def test_option_variants_and_their_arguments(dftbplus):
 )
 def test_invalid_options(dftbplus, parameters, path):
     assert paths(dftb_spec(**parameters), dftbplus) == [path]
+
+
+def test_a_bare_value_goes_to_the_scalar_argument(dftbplus):
+    """``SMEARING`` declares ``SCALAR``: a bare value is its default choice."""
+    assert validate(dftb_spec(SMEARING=0.001), dftbplus) == []
+    assert validate(dftb_spec(FILLING=0.001), dftbplus) == []
+
+
+def test_a_bare_value_is_checked_like_the_argument_it_fills(dftbplus):
+    [issue] = issues(dftb_spec(SMEARING="0.001 eV"), dftbplus)
+    assert issue.path == "parameters.SMEARING"
+    assert "'0.001 eV' is not one of: " in issue.message
+    [issue] = issues(dftb_spec(SMEARING=[1, 2]), dftbplus)
+    assert issue.path == "parameters.SMEARING.Fermi.Temperature"
+    assert "expected REAL, got list" in issue.message
+
+
+def test_scalar_without_a_usable_default_is_a_doc_error(tmp_path):
+    """``SCALAR`` needs a ``DEFAULT`` choice to carry the bare value."""
+    doc = {key: {} for key in REQUIRED_KEYS} | {
+        "SOFTWARE": "X",
+        "VERSION": "0",
+        "SYNTAX": "FLAT",
+        "EXECUTION": [],
+        "MODULES": {"SINGLE_POINT": {}},
+        "METHODS": {"HF": {}},
+        "PARAMETERS": {
+            "SMEARING": {
+                "TYPE": "CHOICE",
+                "SCALAR": "Temperature",
+                "ARGUMENTS": {"Fermi": {"TYPE": "BLOCK"}},
+                "COMMON_ARGUMENTS": {"Temperature": {"TYPE": "REAL"}},
+            }
+        },
+    }
+    path = tmp_path.joinpath("doc.json")
+    path.write_text(json.dumps(doc), encoding="utf-8")
+    spec = CalculationSpec.from_kwargs(
+        method="HF", module="SINGLE_POINT", parameters={"SMEARING": 0.001}
+    )
+    [issue] = issues(spec, load(path))
+    assert issue.path == "parameters.SMEARING"
+    assert "needs a DEFAULT choice to carry Temperature" in issue.message
 
 
 def test_unknown_parameter(dftbplus):
@@ -209,10 +253,10 @@ def test_wrong_type(dftbplus):
 
 
 def test_value_outside_the_declared_range(dftbplus):
-    """``FILLING`` declares the order of Methfessel-Paxton in [1, 10]."""
-    spec = dftb_spec(FILLING={"MethfesselPaxton": {"Order": 42}})
+    """``SMEARING`` declares the order of Methfessel-Paxton in [1, 10]."""
+    spec = dftb_spec(SMEARING={"MethfesselPaxton": {"Order": 42}})
     [issue] = issues(spec, dftbplus)
-    assert issue.path == "parameters.FILLING.MethfesselPaxton.Order"
+    assert issue.path == "parameters.SMEARING.MethfesselPaxton.Order"
     assert "outside [1, 10]" in issue.message
 
 

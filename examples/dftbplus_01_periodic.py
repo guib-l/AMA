@@ -5,7 +5,8 @@ otherwise it stops with what to set.
 
 Every name comes from ``amac/assets/dftbplus/doc.json``: the ``DFTB2`` variant sets
 ``SCC = Yes`` by itself, ``SLATER_KOSTER_FILES`` is mandatory, and ``KPOINTS``,
-``FILLING`` and ``MIXER`` are choices written as ``{"<variant>": {...}}``. Its
+``SMEARING`` and ``MIXER`` are choices written as ``{"<variant>": {...}}``;
+``SMEARING`` also takes a bare temperature, filled into its default choice. Its
 modules are ``PERIODIC = BOTH``: the same specification runs on a crystal and on a
 molecule, only ``KPOINTS`` is bound to a periodic cell (``CONDITION`` ``Periodic =
 Yes``). Input values are in atomic units (Hartree, Bohr), as the ``doc.json``
@@ -71,14 +72,14 @@ TIGHT_BINDING = {
     "parameters": {
         "SLATER_KOSTER_FILES": {
             "variant": "Type2FileNames",
-            "Separator": "-",
-            "Suffix": ".skf",
         },
         # Monkhorst-Pack 4x4x4, shifted: the folding matrix then the shift.
         "KPOINTS": {
             "SupercellFolding": [[4, 0, 0], [0, 4, 0], [0, 0, 4], [0.5, 0.5, 0.5]]
         },
-        "FILLING": {"Fermi": {"Temperature": 0.001}},  # Hartree
+        # Bare value: Fermi, the default choice, at that temperature (Hartree).
+        # Written out, the same thing: {"Fermi": {"Temperature": 0.001}}.
+        "SMEARING": 0.001,
         "MIXER": {"Broyden": {"MixingParameter": 0.1}},
         "OPTIONS": {"WriteResultsTag": True},
         "ANALYSIS": {"MullikenAnalysis": True, "Printforces": True},
