@@ -1,9 +1,0 @@
-{
-    "ID": "GEOMETRY_OPTIMISATION",
-    "ALIASES": [
-        "OPT",
-        "GEOMETRY_OPTIMIZATION",
-        "RELAX"
-    ],
-    "DESCRIPTION": "Recherche d'un minimum (et optionnellement de la maille)."
-}
