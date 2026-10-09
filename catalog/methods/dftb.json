@@ -2,42 +2,124 @@
     "DFTB":{
         "alias":["DFTB-1"],
         "hinerit":null,
-        "attribute":{
-            "diagonalizer":{
-                "value":null,
-                "type":"str",
-                "mandatory":false
-            },
+        "mandatory-attribute":{
             "basis":{
-                "value":null,
+                "open-box":true,
+                "default":null,
+                "range":null,
                 "type":"str",
-                "mandatory":true
+                "box":{
+                    "mandatory-attribute":{
+                        "directory":{
+                            "open-box":false,
+                            "default":null,
+                            "type":"str",
+                            "description": ""
+                        }
+                    },
+                    "allowed-attribute":{
+                        "format":{
+                            "open-box":false,
+                            "default":null,
+                            "type":"str",
+                            "description": ""
+                        },
+                        "ptype":{
+                            "open-box":false,
+                            "default":null,
+                            "type":"str",
+                            "description": ""
+                        }
+                    },
+                    "forbiden-attribute":[]
+                }
             }
         },
-        "exclude-attribute":[]
+        "allowed-attribute":{
+            "diagonalizer":{
+                "default":null,
+                "type":"string",
+                "description": ""
+            }
+        },
+        "forbiden-attribute":[]
     },
     "DFTB-2":{
         "alias":["SCC-DFTB"],
         "hinerit":["DFTB-1"],
-        "attribute":{
+        "mandatory-attribute":{},
+        "allowed-attribute":{
             "scc-tol":{
-                "value":null,
+                "open-box":false,
+                "default":null,
+                "type":"float",
+                "range":[0.0,1.0],
+                "description": "",
+                "available":null
+
+            },
+            "scc-max":{
+                "open-box":false,
+                "default":null,
+                "type":"integer",
+                "description": "",
+                "available":null
+            },
+            "mixer":{
+                "open-box":true,
+                "default":null,
                 "type":"str",
-                "mandatory":false
+                "available":["simple"],
+                "box":{
+                    "mandatory-attribute":{},
+                    "allowed-attribute":{
+                        "mixing-parameter":{
+                            "open-box":false,
+                            "default":null,
+                            "type":"float",
+                            "range":[0.0,1.0],
+                            "authorized-with":["simple"]
+                        }
+                    },
+                    "forbiden-attribute":[]
+                }
+            },
+            "shell-dep":{
+                "default":null,
+                "type":"booleen",
+                "range":null,
+                "available":null
+            },
+            "filling":{
+                "default":null,
+                "type":"float",
+                "range":null,
+                "available":null
             }
         },
-        "exclude-attribute":[]
+        "forbiden-attribute":[]
+    },
+    "CI-DFTB":{
+        "alias":["DFTB-CI","SCC-DFTB-CI"],
+        "hinerit":["DFTB-2"],
+        "mandatory-attribute":{
+            "size-ci":{
+                "default":null,
+                "type":"integer"
+            },
+            "fragments":{
+                "default":null,
+                "type":"list[integer]"
+            }
+        },
+        "allowed-attribute":{},
+        "forbiden-attribute":["shell-dep"]        
     },
     "DFTB-3":{
         "alias":[],
         "hinerit":["DFTB-1","DFTB-2"],
-        "attribute":{
-            "scc-tol":{
-                "value":null,
-                "type":"str",
-                "mandatory":false
-            }
-        },
-        "exclude-attribute":[]
+        "mandatory-attribute":{},
+        "allowed-attribute":{},
+        "forbiden-attribute":[]
     }
 }

@@ -23,7 +23,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Chemistry",
 ]
 dependencies = [
-    "numpy>=2.0",
+    "numpy>=2.5",
     "ase>=3.23",
 ]
 
@@ -35,8 +35,6 @@ dev = [
     "amac[test]",
     "ruff>=0.15",
 ]
-# Libraries of the optional drivers; the DFTB+ Python API is installed with DFTB+.
-dftbplus = ["hsd-python"]
 
 [tool.setuptools.dynamic]
 version = { attr = "amac.__version__" }

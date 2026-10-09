@@ -1,0 +1,9 @@
+{
+    "single-point":{
+        "alias":["sp","single"],
+        "mandatory-handler":["lowest-energy"],
+        "mandatory-attribute":null,
+        "allowed-attribute":null,
+        "forbiden-attribute":null
+    }
+}

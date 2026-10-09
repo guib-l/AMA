@@ -1,0 +1,10 @@
+{
+    "methods":[
+        "dftb"
+    ],
+    "module":[
+        "single-point",
+        "optimization"
+    ],
+    "options":[]
+}

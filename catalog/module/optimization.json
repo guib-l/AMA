@@ -1,0 +1,18 @@
+{
+    "optimization-geometry":{
+        "alias":["Opt","optimization"],
+        "mandatory-handler":["lowest-energy","gradient"],
+        "mandatory-attribute":null,
+        "allowed-attribute":{
+            "max-step":{
+                "value":null,
+                "type":"integer"
+            },
+            "algorithm":{
+                "value":null,
+                "type":"string"
+            }
+        },
+        "forbiden-attribute":null
+    }
+}

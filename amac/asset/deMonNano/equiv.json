@@ -1,0 +1,20 @@
+{
+    "software": "deMonNano",
+    "version": "0.1.1",
+    "library": "https://github.com/guib-l/DeMonNanoPy",
+    "description": "Equivalence between dftb methods and deMonNanoPy input able to run deMonNano code",
+    "execution": ["inprocess"],
+    "methods":{
+        "dftb":{
+            "dftb-1":{
+                "basis":"basis"
+            }
+        }
+    },
+    "module":{
+
+    },
+    "options":{
+
+    }
+}

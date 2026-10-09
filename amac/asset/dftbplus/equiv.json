@@ -1,0 +1,20 @@
+{
+    "software": "DFTB+",
+    "version": "25.1",
+    "library": "https://dftbplus.org",
+    "description": "Equivalence between dftb methods and DFTB+ input of code",
+    "execution": ["composerIO"],
+    "methods":{
+        "dftb":{
+            "dftb-1":{
+                "basis":"basis"
+            }
+        }
+    },
+    "module":{
+
+    },
+    "options":{
+
+    }
+}
