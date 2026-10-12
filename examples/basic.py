@@ -10,7 +10,7 @@ amac.set_config("config-amac.json")
 
 calc = AMAC(
     software="deMonNano",
-    cpu=2,
+    process_unit=2,
     workdir=".run/",
     label="water",
     execution="inprocess"

@@ -4,8 +4,7 @@
 from pathlib import Path
 from typing import *
 
-
-
+from amac.asset import resolved_software
 
 
 
@@ -15,13 +14,18 @@ class AMAC:
             self,
             *,
             software: str | None = None,
-            cpu: int = 1,
+            process_unit: int = 1,
             workdir: str | Path = '.',
             label: str | None = "AMAC-calculation",
             execution: str | None = "inprocess",
-            config: str | Path | None = None
+            config: dict = {}
         ):
-        pass
+
+        self._soft = resolved_software(
+            software,
+            **config
+        )
+        
 
     def __repr__(self):
         pass
@@ -36,7 +40,12 @@ class AMAC:
     def from_dict(self):
         pass
 
+
+    def resolved_handler(self):
+        ...
+
     def handler_register(self, *handlers):
+        # récupère les handlers du software
         ...
 
     def parameters_register(
@@ -47,6 +56,11 @@ class AMAC:
             module_args={},    
         ):
         ...
+    
+    def resolved_parameters(self):
+        # récupère les paramètres associés au software
+        ...
+
 
     def execute(
             self,
