@@ -1,125 +1,97 @@
 {
     "DFTB":{
         "alias":["DFTB-1"],
-        "hinerit":null,
+        "inherits":null,
         "mandatory-attribute":{
             "basis":{
-                "open-box":true,
-                "default":null,
-                "range":null,
                 "type":"str",
-                "box":{
+                "description": "",
+                "children":{
                     "mandatory-attribute":{
                         "directory":{
-                            "open-box":false,
-                            "default":null,
                             "type":"str",
                             "description": ""
                         }
                     },
                     "allowed-attribute":{
                         "format":{
-                            "open-box":false,
-                            "default":null,
                             "type":"str",
                             "description": ""
                         },
                         "ptype":{
-                            "open-box":false,
-                            "default":null,
                             "type":"str",
                             "description": ""
                         }
                     },
-                    "forbiden-attribute":[]
+                    "forbidden-attribute":[]
                 }
             }
         },
         "allowed-attribute":{
             "diagonalizer":{
-                "default":null,
-                "type":"string",
+                "type":"str",
                 "description": ""
             }
         },
-        "forbiden-attribute":[]
+        "forbidden-attribute":[]
     },
     "DFTB-2":{
         "alias":["SCC-DFTB"],
-        "hinerit":["DFTB-1"],
+        "inherits":["DFTB-1"],
         "mandatory-attribute":{},
         "allowed-attribute":{
             "scc-tol":{
-                "open-box":false,
-                "default":null,
                 "type":"float",
                 "range":[0.0,1.0],
-                "description": "",
-                "available":null
-
+                "description": ""
             },
             "scc-max":{
-                "open-box":false,
-                "default":null,
-                "type":"integer",
-                "description": "",
-                "available":null
+                "type":"int",
+                "description": ""
             },
             "mixer":{
-                "open-box":true,
-                "default":null,
                 "type":"str",
-                "available":["simple"],
-                "box":{
+                "choices":["simple"],
+                "children":{
                     "mandatory-attribute":{},
                     "allowed-attribute":{
                         "mixing-parameter":{
-                            "open-box":false,
-                            "default":null,
                             "type":"float",
                             "range":[0.0,1.0],
                             "authorized-with":["simple"]
                         }
                     },
-                    "forbiden-attribute":[]
+                    "forbidden-attribute":[]
                 }
             },
             "shell-dep":{
-                "default":null,
-                "type":"booleen",
-                "range":null,
-                "available":null
+                "type":"bool"
             },
             "filling":{
-                "default":null,
-                "type":"float",
-                "range":null,
-                "available":null
+                "type":"float"
             }
         },
-        "forbiden-attribute":[]
+        "forbidden-attribute":[]
     },
     "CI-DFTB":{
         "alias":["DFTB-CI","SCC-DFTB-CI"],
-        "hinerit":["DFTB-2"],
+        "inherits":["DFTB-2"],
         "mandatory-attribute":{
             "size-ci":{
-                "default":null,
-                "type":"integer"
+                "type":"int"
             },
             "fragments":{
-                "default":null,
-                "type":"list[integer]"
+                "type":"list[int]"
             }
         },
         "allowed-attribute":{},
-        "forbiden-attribute":["shell-dep"]        
+        "forbidden-attribute":["shell-dep"]
     },
     "DFTB-3":{
         "alias":[],
-        "hinerit":["DFTB-1","DFTB-2"],
+        "inherits":["DFTB-2"],
         "mandatory-attribute":{},
         "allowed-attribute":{},
-        "forbiden-attribute":[]
+        "forbidden-attribute":[]
     }
 }

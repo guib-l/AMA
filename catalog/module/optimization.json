@@ -5,14 +5,12 @@
         "mandatory-attribute":null,
         "allowed-attribute":{
             "max-step":{
-                "value":null,
-                "type":"integer"
+                "type":"int"
             },
             "algorithm":{
-                "value":null,
-                "type":"string"
+                "type":"str"
             }
         },
-        "forbiden-attribute":null
+        "forbidden-attribute":null
     }
 }

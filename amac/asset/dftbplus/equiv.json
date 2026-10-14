@@ -1,20 +1,38 @@
 {
+    "catalog-version": "1",
     "software": "DFTB+",
     "version": "25.1",
     "library": "https://dftbplus.org",
     "description": "Equivalence between dftb methods and DFTB+ input of code",
     "execution": ["composerIO"],
-    "methods":{
-        "dftb":{
-            "dftb-1":{
-                "basis":"basis"
+    "methods": {
+        "DFTB": {
+            "set": {"Hamiltonian.DFTB": {}},
+            "attributes": {
+                "basis":        {"transform": "skf_type2filenames",
+                                 "target": "Hamiltonian.DFTB.SlaterKosterFiles"},
+                "diagonalizer": {"target": "Hamiltonian.DFTB.Solver",
+                                 "values": {"...": "..."}}}
+    },
+    "DFTB-2": {
+        "set": {"Hamiltonian.DFTB.Scc": true},
+        "attributes": {
+            "scc-tol":   {"target": "Hamiltonian.DFTB.SccTolerance"},
+            "scc-max":   {"target": "Hamiltonian.DFTB.MaxSccIterations"},
+            "shell-dep": {"target": "Hamiltonian.DFTB.OrbitalResolvedScc"},
+            "filling":   {"target": "Hamiltonian.DFTB.Filling.Fermi.Temperature", "unit": "K"},
+            "mixer":     {"target": "Hamiltonian.DFTB.Mixer",
+                          "values": {"simple": "Simple"},
+                          "children": {"mixing-parameter": {"target": "MixingParameter"}}}
             }
+        },
+        "DFTB-3": {"set": {"Hamiltonian.DFTB.ThirdOrderFull": true}},
+        "CI-DFTB": {"supported": false}
+    },
+    "module": {
+        "optimization-geometry": {
+            "set": {"Driver.GeometryOptimization": {}},
+            "attributes": {"max-step": {"target": "Driver.GeometryOptimization.MaxSteps"}}
         }
-    },
-    "module":{
-
-    },
-    "options":{
-
     }
 }
