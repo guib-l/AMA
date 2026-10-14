@@ -33,22 +33,12 @@ calc.parameters_register(
     module_args={}
 )
 
-calc.execute(water) 
-result = calc.results  
+# ict = calc.set_instance("itc_001", )
+
+calc.run(water) 
+
+result = calc.results
 print(result.success, result.properties)
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
