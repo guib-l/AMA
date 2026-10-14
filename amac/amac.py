@@ -4,74 +4,21 @@ import uuid
 from pathlib import Path
 from typing import *
 
+import time
+from functools import wraps
 from amac.asset import resolved_software
 
-from amac.context import Context,Result
+from amac.context import Context,Result,Explorer,Duration,Properties
+from amac.instance import Instance
 from dataclasses import dataclass
 
 
-@dataclass
-class Instance:
-
-    name: str = "default_name"
-    id: uuid.UUID = uuid.uuid4()
-    ctx: Context = None
-    res: Result = None
-
-    def __repr__(self):
-        repr = f"\n| INSTANCE - {self.id}\n|  > name: {self.name}\n"
-        repr += f"|  > workdir: {self.ctx.workdir}\n"
-        repr += f"|  > complet: {self.res.complet}\n"
-        repr += f"|  > success: {self.res.success}\n"
-        return repr
-
-    def update(self, *, ctx, res):
-        self.ctx = ctx
-        self.res = res
-
-    @classmethod
-    def new_instance(
-            cls, 
-            name=None, 
-            atoms = None,
-            exec_spec = None,
-            software = None,
-            workdir = None,
-            input_files = {},
-            files = {},
-            stdout = None,
-            stderr = None,
-            return_code = None,
-            duration = {},
-            metadata = None,
-            success = False,
-            complet = False,
-            properties = {},
-            origin = {},
-            errors = {}
-        ):
-        if name is None:
-            name = "default_name"
-        ctx=Context(
-             atoms, exec_spec, software, workdir,
-             input_files, files, stdout, stderr,
-             return_code, duration, metadata,                       
-        )
-        res = Result(
-             success,
-             complet,
-             properties,
-             errors
-        )
-        return cls(name=name, ctx=ctx, res=res)
-    
 
 
 class AMAC:
 
-    active_ctx: Context
-    active_res: Result
-    instances: List[Instance]
+    instances: List[Instance] = []
+    __active_instance: Instance 
 
     def __init__(
             self,
@@ -90,26 +37,62 @@ class AMAC:
         )
 
         _instance = Instance.new_instance(
-            atoms = None,
+            name = None, 
+            image = None,
+            software = software,
+            soft_spec = config_spec,
+            execute = None,
             exec_spec = None,
-            software = None,
             workdir = workdir,
             input_files = {},
-            files = {},
+            output_files = {},
+            annexe_files = {},
             stdout = None,
             stderr = None,
             return_code = None,
-            duration = {},
             metadata = None,
             success = False,
             complet = False,
-            properties = {},
-            origin = {},
-            errors = {}
+            method = None,
+            method_attr = {},
+            module = None,
+            module_attr = {},
+            handler = (),
+            errors = {},
+            product = {}
         )
 
+        self.__active_instance = _instance
 
-        print(_instance)
+    @property
+    def instance(self):
+        return self.__active_instance
+
+    def new_instance(self, name=""):
+
+        _instance = self.__active_instance.new()
+        print("new_instance")
+        self.instances.append( 
+            self.__active_instance
+        )
+        self.__active_instance = _instance
+
+    def switch_instance(self, target):
+
+        ...
+        
+    
+    @staticmethod
+    def measure_runtime(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            self.instance.open_instance()
+            
+            _prod = func(self, *args, **kwargs)
+
+            self.instance.close_instance()
+            return _prod
+        return wrapper
 
     
 
@@ -153,15 +136,25 @@ class AMAC:
             module: str = "single-point",
             method_args: dict[str, Any] | None = None,
             module_args: dict[str, Any] | None = None,
+            erase_instance: bool = True
         ):
-        ...
 
+        self.execute(
+            method,
+            module,
+            method_args,
+            module_args,
+            erase_instance            
+        )
+
+    @measure_runtime
     def execute(
             self,
             method: str = None,
             module: str = "single-point",
             method_args: dict[str, Any] | None = None,
             module_args: dict[str, Any] | None = None,
+            erase_instance: bool = True
         ):
         ...
 

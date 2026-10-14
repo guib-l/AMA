@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import copy
+
+import time
+from datetime import date
+
 from collections.abc import Callable
 from dataclasses import dataclass, field, fields
 from pathlib import Path
@@ -79,7 +83,6 @@ class Context:
         execute: Execution of computation.
         exec_spec: Execution specification.
         workdir: Working directory of the image.
-        files: Produced file names mapped to their path, filled after the run.
         stdout: Standard output of the run.
         stderr: Standard error of the run.
         metadata: Free-form additional information.
@@ -92,7 +95,6 @@ class Context:
     workdir: Path | None = None
     stdout: str | None = None
     stderr: str | None = None
-    files: dict[str, Path] | Explorer = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -112,7 +114,6 @@ class Context:
             "workdir":self.workdir,
             "stdout":self.stdout,
             "stderr":self.stderr,
-            "files":copy.deepcopy(self.files),
             "metadata":copy.deepcopy(self.metadata)
         }
 
@@ -136,6 +137,18 @@ class Duration:
     date_end: None = None
     date_steps: None = None
     duree: None = None
+    _time_start: None = None
+    _time_stop: None = None
+
+    def _open(self):
+        self._time_start = time.time()
+        self.date_begin = date.today()
+
+    def _closed(self):
+        self._time_stop = time.time()
+        self.date_end = date.today()
+        self.duree = self._time_stop - self._time_start
+
 
 @dataclass
 class Result:
@@ -146,15 +159,13 @@ class Result:
         success: Final state of calculation.
         errors: Errors collected during the run.
         product: production of calculation according to handler
-        return_code: 
-        duration: 
+        return_code: error code 
     """
     complet: bool
     success: bool
     errors: list[Any] = field(default_factory=list)
     return_code: int | None = None
     product: dict[str, Any] = field(default_factory=dict)
-    duration: dict[str, float] | Duration = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Return the result as a dict, without the context."""
@@ -164,7 +175,6 @@ class Result:
             "product": self.product,
             "errors": copy.deepcopy(self.errors),
             "return_code":self.return_code,
-            "duration":self.duration
         }
 
     @classmethod

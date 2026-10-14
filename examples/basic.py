@@ -37,10 +37,16 @@ calc.parameters_register(
 
 calc.run(water) 
 
-result = calc.results
-print(result.success, result.properties)
+print(calc.instance)
 
 
+
+calc.new_instance()
+
+
+calc.run(water) 
+
+print(calc.instance)
 
 
 
