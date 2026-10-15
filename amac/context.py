@@ -161,8 +161,8 @@ class Result:
         product: production of calculation according to handler
         return_code: error code 
     """
-    complet: bool
-    success: bool
+    complet: bool = False
+    success: bool = False
     errors: list[Any] = field(default_factory=list)
     return_code: int | None = None
     product: dict[str, Any] = field(default_factory=dict)

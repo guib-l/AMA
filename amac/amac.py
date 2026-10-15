@@ -36,7 +36,7 @@ class AMAC:
             **config_spec
         )
 
-        _instance = Instance.new_instance(
+        _instance = Instance.factory_instance(
             name = None, 
             image = None,
             software = software,
@@ -70,7 +70,7 @@ class AMAC:
 
     def new_instance(self, name=""):
 
-        _instance = self.__active_instance.new()
+        _instance = self.__active_instance.new_instance()
         print("new_instance")
         self.instances.append( 
             self.__active_instance
@@ -144,7 +144,7 @@ class AMAC:
             module,
             method_args,
             module_args,
-            erase_instance            
+            erase_instance 
         )
 
     @measure_runtime
@@ -156,7 +156,11 @@ class AMAC:
             module_args: dict[str, Any] | None = None,
             erase_instance: bool = True
         ):
-        ...
+
+
+
+
+        self.__active_instance.res.complet = True
 
     def restart(self,):
         ...

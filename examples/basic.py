@@ -37,10 +37,6 @@ calc.parameters_register(
 
 calc.run(water) 
 
-print(calc.instance)
-
-
-
 calc.new_instance()
 
 
