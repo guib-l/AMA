@@ -38,123 +38,6 @@ class Instance:
         self.expl(**kwargs)
 
 
-    # ------------------------------------------------------------------
-    # Factory
-    # ------------------------------------------------------------------
-
-    @classmethod
-    def factory_instance(
-        cls,
-        name=None,
-        image=None,
-        # Context
-        software=None,
-        soft_spec=None,
-        execute=None,
-        exec_spec=None,
-        workdir=None,
-        stdout=None,
-        stderr=None,
-        metadata=None,
-        # Result
-        return_code=None,
-        success=False,
-        complet=False,
-        errors=None,
-        product=None,
-        # Explorer
-        input_files=None,
-        output_files=None,
-        annexe_files=None,
-        # Properties
-        method=None,
-        method_attr=None,
-        module=None,
-        module_attr=None,
-        handler=(),
-    ):
-        """
-        Build a new initialized Instance
-        """
-
-        if name is None:
-            name = "default_name"
-
-        errors = {} if errors is None else errors
-        product = {} if product is None else product
-
-        input_files = (
-            {} if input_files is None else input_files
-        )
-        output_files = (
-            {} if output_files is None else output_files
-        )
-        annexe_files = (
-            {} if annexe_files is None else annexe_files
-        )
-
-        method_attr = (
-            {} if method_attr is None else method_attr
-        )
-        module_attr = (
-            {} if module_attr is None else module_attr
-        )
-
-        # Properties
-        props = Properties(
-            image,
-            method,
-            method_attr,
-            module,
-            module_attr,
-            handler,
-        )
-
-        # Exploration of files
-        expl = Explorer(
-            input_files,
-            output_files,
-            annexe_files,
-        )
-
-        # Context of execution
-        ctx = Context(
-            software,
-            soft_spec,
-            execute,
-            exec_spec,
-            workdir,
-            stdout,
-            stderr,
-            metadata,
-        )
-
-        # Duration and time
-        duree = Duration(
-            date_begin=None,
-            date_end=None,
-            date_steps=None,
-            duree=0.0,
-        )
-
-        # Results
-        res = Result(
-            success,
-            complet,
-            errors,
-            return_code,
-            product,
-        )
-
-        # Initialization of constructor
-        return cls(
-            name=name,
-            props=props,
-            expl=expl,
-            ctx=ctx,
-            duree=duree,
-            res=res,
-        )
     
     # ------------------------------------------------------------------
     # Life cycle
@@ -354,6 +237,123 @@ class Instance:
 
 
 
+    # ------------------------------------------------------------------
+    # Factory
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def factory_instance(
+        cls,
+        name=None,
+        image=None,
+        # Context
+        software=None,
+        soft_spec=None,
+        execute=None,
+        exec_spec=None,
+        workdir=None,
+        stdout=None,
+        stderr=None,
+        metadata=None,
+        # Result
+        return_code=None,
+        success=False,
+        complet=False,
+        errors=None,
+        product=None,
+        # Explorer
+        input_files=None,
+        output_files=None,
+        annexe_files=None,
+        # Properties
+        method=None,
+        method_args=None,
+        module=None,
+        module_args=None,
+        handler=(),
+    ):
+        """
+        Build a new initialized Instance
+        """
+
+        if name is None:
+            name = "default_name"
+
+        errors = {} if errors is None else errors
+        product = {} if product is None else product
+
+        input_files = (
+            {} if input_files is None else input_files
+        )
+        output_files = (
+            {} if output_files is None else output_files
+        )
+        annexe_files = (
+            {} if annexe_files is None else annexe_files
+        )
+
+        method_args = (
+            {} if method_args is None else method_args
+        )
+        module_args = (
+            {} if module_args is None else module_args
+        )
+
+        # Properties
+        props = Properties(
+            image,
+            method,
+            method_args,
+            module,
+            module_args,
+            handler,
+        )
+
+        # Exploration of files
+        expl = Explorer(
+            input_files,
+            output_files,
+            annexe_files,
+        )
+
+        # Context of execution
+        ctx = Context(
+            software,
+            soft_spec,
+            execute,
+            exec_spec,
+            workdir,
+            stdout,
+            stderr,
+            metadata,
+        )
+
+        # Duration and time
+        duree = Duration(
+            date_begin=None,
+            date_end=None,
+            date_steps=None,
+            duree=0.0,
+        )
+
+        # Results
+        res = Result(
+            success,
+            complet,
+            errors,
+            return_code,
+            product,
+        )
+
+        # Initialization of constructor
+        return cls(
+            name=name,
+            props=props,
+            expl=expl,
+            ctx=ctx,
+            duree=duree,
+            res=res,
+        )
 
 
 

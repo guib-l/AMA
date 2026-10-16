@@ -11,7 +11,7 @@ from typing import Any
 
 
 from pathlib import Path
-from typing import Any, ClassVar, Mapping, Sequence
+from typing import Any, ClassVar, Mapping, Sequence, Self
 
 from dataclasses import dataclass
 

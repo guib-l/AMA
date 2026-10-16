@@ -1,6 +1,7 @@
 
-
+import sys
 import uuid
+import copy
 from pathlib import Path
 from typing import *
 
@@ -19,8 +20,9 @@ from dataclasses import dataclass
 
 class AMAC:
 
+    label: str = "AMAC.calculator"
     instances: List[Instance] = []
-    __active_instance: Instance 
+    __active_instance: Instance | None = None
 
     def __init__(
             self,
@@ -28,10 +30,13 @@ class AMAC:
             software: str | None = None,
             process_unit: int = 1,
             workdir: str | Path = '.',
-            label: str | None = "AMAC-calculation",
+            label: str | None = "AMAC.calculator",
             process: str | None = "inprocess",
-            config_spec: dict = {}
+            config_spec: dict = {},
+            stdout = sys.stdout,
+            stderr = sys.stderr,
         ):
+        self.label = label
 
         self._soft = resolved_software(
             software,
@@ -39,46 +44,26 @@ class AMAC:
             process_unit=process_unit,
         )
 
-        _instance = Instance.factory_instance(
-            name = None, 
-            image = None,
-            software = self._soft,
-            soft_spec = config_spec,
-            execute = None,
-            exec_spec = None,
-            workdir = workdir,
-            input_files = {},
-            output_files = {},
-            annexe_files = {},
-            stdout = None,
-            stderr = None,
-            return_code = None,
-            metadata = None,
-            success = False,
-            complet = False,
-            method = None,
-            method_attr = {},
-            module = None,
-            module_attr = {},
-            handler = (),
-            errors = {},
-            product = {}
-        )
+        #_instance = Instance.factory_instance(
+        #    software = self._soft,
+        #    soft_spec = config_spec,
+        #    workdir = workdir,
+        #)
+        #self.__active_instance = _instance
 
-        self.__active_instance = _instance
 
     @property
     def instance(self):
         return self.__active_instance
 
-    def new_instance(self, name=""):
-
-        _instance = self.__active_instance.new_instance()
-        
-        self.instances.append( 
-            self.__active_instance
-        )
-        self.__active_instance = _instance
+    #def new_instance(self, name=""):
+    #    _instance = self.__active_instance.new_instance()
+    #    
+    #    self.instances.append( 
+    #        self.__active_instance
+    #    )
+    #    self.__active_instance = _instance
+    
 
     def switch_instance(self, target):
 
@@ -94,6 +79,30 @@ class AMAC:
             _prod = func(self, *args, **kwargs)
 
             self.instance.close_instance()
+            return _prod
+        return wrapper
+
+    @staticmethod
+    def new_instance(func):
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+
+            if self.__active_instance is not None:
+                self.instances.append(
+                    copy.deepcopy(self.__active_instance)
+                )
+
+                _instance = Instance.factory_instance(
+                    **self.instance.props.to_dict(),
+                    **self.instance.ctx.to_dict()
+                )
+            else:
+                _instance = Instance.new_instance()
+            self.__active_instance = _instance
+
+
+            _prod = func(self, *args, **kwargs)
+
             return _prod
         return wrapper
 
@@ -120,6 +129,7 @@ class AMAC:
         # récupère les handlers du software
         ...
 
+    @new_instance
     def parameters_register(
             self, 
             image = None,
@@ -137,7 +147,6 @@ class AMAC:
             module_args=module_args, 
         )
     
-
     def run(
             self,
             image: ase.Atoms = None,
