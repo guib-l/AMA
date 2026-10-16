@@ -1,6 +1,8 @@
+# AMAC directory
 .env/
 data/
 archive/
+config-amac.json
 
 # AI
 audit*.md

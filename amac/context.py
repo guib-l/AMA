@@ -20,34 +20,24 @@ from amac.engine.execute import Execute
 
 
 @dataclass
-class Properties:
-    """Properties of calculation
+class base:
 
-    Attributes:
-        image: Geometry of the image (ase.Atoms).
-        method: method used
-        method_attr: properties associated with method
-        module: module used
-        module_attr: properties associated with module
-    """
-
-    image: Atoms = None
-    method: str = None
-    method_attr: dict[str, Any] = field(default_factory=dict)
-    module: str = None
-    module_attr: dict[str, Any] = field(default_factory=dict)
-    handler: tuple = ()
+    def __call__(self, **kwargs):
+        for key,item in kwargs.items():
+            if key in self.__dict__.keys():
+                self.__setattr__(key, item)
 
     def to_dict(self) -> dict[str, Any]:
         """Return the result as a dict, without the context."""
-        return {
-            "image": self.image.copy(),
-            "method": self.method,
-            "module": self.module,
-            "method_attr": copy.deepcopy(self.method_attr),
-            "module_attr": copy.deepcopy(self.module_attr),
-            "handler":self.handler
-        }
+        results = {}
+        for key,item in self.__dict__.items():
+            value = copy.deepcopy(item)
+            if hasattr(item, "to_dict"):
+                value = item.to_dict()
+            results.update({
+                key:value
+            })
+        return results
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Self:
@@ -63,8 +53,31 @@ class Properties:
 
 
 
+
 @dataclass
-class Explorer:
+class Properties(base):
+    """Properties of calculation
+
+    Attributes:
+        image: Geometry of the image (ase.Atoms).
+        method: method used
+        method_args: properties associated with method
+        module: module used
+        module_args: properties associated with module
+    """
+
+    image: Atoms = None
+    method: str = None
+    method_args: dict[str, Any] = field(default_factory=dict)
+    module: str = None
+    module_args: dict[str, Any] = field(default_factory=dict)
+    handler: tuple = ()
+
+
+
+
+@dataclass
+class Explorer(base):
 
     input_files: dict[str, Path] = field(default_factory=dict)
     output_files: dict[str, Path] = field(default_factory=dict)
@@ -73,7 +86,7 @@ class Explorer:
 
 
 @dataclass
-class Context:
+class Context(base):
     """Mutable state shared by the steps of calculation.
 
     Attributes:
@@ -104,34 +117,9 @@ class Context:
             _soft = resolved_software(self.software, **self.soft_spec)
             self.software = _soft
 
-    def to_dict(self) -> dict[str, Any]:
-        """Return the result as a dict, without the context."""
-        return {
-            "software":self.software.name,
-            "soft_spec":copy.deepcopy(self.soft_spec),
-            "execute":self.execute.name,
-            "exec_spec":copy.deepcopy(self.exec_spec),
-            "workdir":self.workdir,
-            "stdout":self.stdout,
-            "stderr":self.stderr,
-            "metadata":copy.deepcopy(self.metadata)
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> Self:
-        """Build a result from the output of :meth:`to_dict`.
-
-        Raises:
-            ValueError: If ``data`` contains unknown keys.
-        """
-        known = {f.name for f in fields(cls)} - {"context"}
-        if unknown := data.keys() - known:
-            raise ValueError(f"Unknown Result keys: {sorted(unknown)}")
-        return cls(**copy.deepcopy(data))
-
 
 @dataclass
-class Duration:
+class Duration(base):
 
     date_begin: None = None
     date_end: None = None
@@ -151,7 +139,7 @@ class Duration:
 
 
 @dataclass
-class Result:
+class Result(base):
     """Outcome of a calculation on one image.
 
     Attributes:
@@ -167,27 +155,6 @@ class Result:
     return_code: int | None = None
     product: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> dict[str, Any]:
-        """Return the result as a dict, without the context."""
-        return {
-            "success": self.success,
-            "complet": self.complet,
-            "product": self.product,
-            "errors": copy.deepcopy(self.errors),
-            "return_code":self.return_code,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> Self:
-        """Build a result from the output of :meth:`to_dict`.
-
-        Raises:
-            ValueError: If ``data`` contains unknown keys.
-        """
-        known = {f.name for f in fields(cls)} - {"context"}
-        if unknown := data.keys() - known:
-            raise ValueError(f"Unknown Result keys: {sorted(unknown)}")
-        return cls(**copy.deepcopy(data))
 
 
 

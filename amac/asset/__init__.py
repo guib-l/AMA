@@ -20,7 +20,7 @@ def resolved_name(_soft, _name:str) -> bool:
     return False
 
 def resolved_software(_name:str, **config):
-
+    """ """
     if _name is None:
         raise NotImplementedError(f"Software (None) is unknkow")
 

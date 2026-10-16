@@ -4,6 +4,8 @@ import uuid
 from pathlib import Path
 from typing import *
 
+import ase
+
 import time
 from functools import wraps
 from amac.asset import resolved_software
@@ -27,19 +29,20 @@ class AMAC:
             process_unit: int = 1,
             workdir: str | Path = '.',
             label: str | None = "AMAC-calculation",
-            execution: str | None = "inprocess",
+            process: str | None = "inprocess",
             config_spec: dict = {}
         ):
 
         self._soft = resolved_software(
             software,
-            **config_spec
+            process=process,
+            process_unit=process_unit,
         )
 
         _instance = Instance.factory_instance(
             name = None, 
             image = None,
-            software = software,
+            software = self._soft,
             soft_spec = config_spec,
             execute = None,
             exec_spec = None,
@@ -71,7 +74,7 @@ class AMAC:
     def new_instance(self, name=""):
 
         _instance = self.__active_instance.new_instance()
-        print("new_instance")
+        
         self.instances.append( 
             self.__active_instance
         )
@@ -119,45 +122,38 @@ class AMAC:
 
     def parameters_register(
             self, 
-            method,
-            module,
-            method_args={},
-            module_args={},    
+            image = None,
+            method = None,
+            module = None,
+            method_args = None,
+            module_args = None,
         ):
-        ...
+
+        self.__active_instance.properties(
+            image=image,
+            method=method,
+            module=module,
+            method_args=method_args,
+            module_args=module_args, 
+        )
     
-    def resolved_parameters(self):
-        # récupère les paramètres associés au software
-        ...
 
     def run(
             self,
-            method: str = None,
-            module: str = "single-point",
-            method_args: dict[str, Any] | None = None,
-            module_args: dict[str, Any] | None = None,
+            image: ase.Atoms = None,
             erase_instance: bool = True
         ):
-
+        
         self.execute(
-            method,
-            module,
-            method_args,
-            module_args,
-            erase_instance 
+            image=image
         )
 
     @measure_runtime
     def execute(
             self,
-            method: str = None,
-            module: str = "single-point",
-            method_args: dict[str, Any] | None = None,
-            module_args: dict[str, Any] | None = None,
-            erase_instance: bool = True
+            **kwargs
         ):
-
-
+        self.__active_instance.props(**kwargs)
 
 
         self.__active_instance.res.complet = True

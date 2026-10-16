@@ -1,5 +1,5 @@
 
-
+import sys
 import uuid
 from typing import *
 
@@ -21,28 +21,22 @@ class Instance:
     duree: Duration = None
     expl: Explorer = None
 
-    # ------------------------------------------------------------------
-    # Representation
-    # ------------------------------------------------------------------
 
-    def __repr__(self) -> str:
-        """
-        Human-friendly representation of Instance
-        """
+    def properties(self, **kwargs):
+        self.props(**kwargs)
 
-        workdir = getattr(self.ctx, "workdir", None)
-        complet = getattr(self.res, "complet", None)
-        success = getattr(self.res, "success", None)
-        duration = getattr(self.duree, "duree", None)
+    def context(self, **kwargs):
+        self.ctx(**kwargs)
 
-        return (
-            f"\n| INSTANCE - {self.id}\n"
-            f"|  > name:     {self.name}\n"
-            f"|  > workdir:  {workdir}\n"
-            f"|  > complet:  {complet}\n"
-            f"|  > success:  {success}\n"
-            f"|  > duration: {duration} s\n"
-        )
+    def results(self, **kwargs):
+        self.res(**kwargs)
+
+    def duree(self, **kwargs):
+        self.duree(**kwargs)
+
+    def explorer(self, **kwargs):
+        self.expl(**kwargs)
+
 
     # ------------------------------------------------------------------
     # Factory
@@ -86,7 +80,6 @@ class Instance:
         if name is None:
             name = "default_name"
 
-        # Normalisation 
         errors = {} if errors is None else errors
         product = {} if product is None else product
 
@@ -283,10 +276,80 @@ class Instance:
 
         return resultat
 
+    # ------------------------------------------------------------------
+    # Serialization
+    # ------------------------------------------------------------------
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the result as a dict, without the context."""
+        results = {}
+        for key,item in self.__dict__.items():
+            value = copy.deepcopy(item)
+            if hasattr(item, "to_dict"):
+                value = item.to_dict()
+            results.update({
+                key:value
+            })
+        return results
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> Self:
+        """Build a result from the output of :meth:`to_dict`.
+
+        Raises:
+            ValueError: If ``data`` contains unknown keys.
+        """
+        known = {f.name for f in fields(cls)} - {"context"}
+        if unknown := data.keys() - known:
+            raise ValueError(f"Unknown Result keys: {sorted(unknown)}")
+        return cls(**copy.deepcopy(data))
 
 
+    # ------------------------------------------------------------------
+    # Representation
+    # ------------------------------------------------------------------
 
+    def __repr__(self) -> str:
+        """
+        Human-friendly representation of Instance
+        """
 
+        workdir = getattr(self.ctx, "workdir", None)
+        complet = getattr(self.res, "complet", None)
+        success = getattr(self.res, "success", None)
+        duration = getattr(self.duree, "duree", None)
+
+        return (
+            f"\n| INSTANCE - {self.id}\n"
+            f"|  > name:     {self.name}\n"
+            f"|  > workdir:  {workdir}\n"
+            f"|  > complet:  {complet}\n"
+            f"|  > success:  {success}\n"
+            f"|  > duration: {duration} s\n"
+        )
+
+    def pretty_print(self, files=sys.stdout):
+        """Pretty-print parsed results as indented JSON.
+
+        The output is encoded with :class:`~deMonPy.encoder.AseEncoder`
+        so that NumPy arrays and ASE objects are serialisable.
+
+        Args:
+            files: Writable text stream that receives the JSON output.
+                Defaults to :data:`sys.stdout`.
+        """
+        import json
+        from amac.utils.encoder import AseEncoder
+
+        print(
+            json.dumps(
+                self.to_dict(),
+                indent=4,
+                ensure_ascii=True,
+                cls=AseEncoder,
+            ),
+            file=files,
+        )
 
 
 

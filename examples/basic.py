@@ -6,14 +6,14 @@ from amac.amac import AMAC
 water = molecule("H2O")
 
 
-amac.set_config("config-amac.json")
+amac.configure_from_file("config-amac.json")
 
 calc = AMAC(
     software="deMonNano",
-    process_unit=2,
+    process_unit=1,
     workdir=".run/",
     label="water",
-    execution="inprocess"
+    process="inprocess"
 )
 
 calc.handler_register("ground-energy")
@@ -33,17 +33,36 @@ calc.parameters_register(
     module_args={}
 )
 
-# ict = calc.set_instance("itc_001", )
-
 calc.run(water) 
-
-calc.new_instance()
-
-
-calc.run(water) 
-
 print(calc.instance)
 
+calc.instance.pretty_print()
+
+#calc.new_instance()
+#print(calc.instance)
 
 
+from amac.asset.deMonNano.soft import software_deMonNano
+
+data = dict(
+    {"software": {
+        "name":"demonNano",
+        "process": "inprocess",
+        "process_unit": 2,
+        "execute": ".",
+        "basis": ".",
+        "environ": {
+            "OMP_NUM_THREADS": 1
+        },
+        "name": "deMonNano",
+        "alias": [
+            "demonano",
+            "demon_nano",
+            "demon-nano"
+        ],
+        "requires_executable": True
+    }})
+
+soft = software_deMonNano(**data["software"])
+soft.pretty_print()
 
